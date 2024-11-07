@@ -1,0 +1,97 @@
+	/////debug///
+	{
+		std_set_world_matrix(
+			SimpleMath::Matrix::CreateScale(.125f, .125f, .125f) *
+			SimpleMath::Matrix::CreateTranslation(FallingAndHangOn_01)
+			);
+		set_scene_constant_buffer(context);
+		G->sphere_model->Draw(G->unlit_white_effect.get(), G->dxtk_primitive_to_unlit_white_input_layout.Get(), false, false, [=]{
+			context->RSSetState(G->render_states->Wireframe());
+		});
+		std_set_world_matrix(
+			SimpleMath::Matrix::CreateScale(.125f, .125f, .125f) *
+			SimpleMath::Matrix::CreateTranslation(FallingAndHangOn_02)
+			);
+		set_scene_constant_buffer(context);
+		G->sphere_model->Draw(G->unlit_white_effect.get(), G->dxtk_primitive_to_unlit_white_input_layout.Get(), false, false, [=]{
+			context->RSSetState(G->render_states->Wireframe());
+		});
+		std_set_world_matrix(
+			SimpleMath::Matrix::CreateScale(.125f, .125f, .125f) *
+			SimpleMath::Matrix::CreateTranslation(FallingAndHangOn_03)
+			);
+		set_scene_constant_buffer(context);
+		G->sphere_model->Draw(G->unlit_white_effect.get(), G->dxtk_primitive_to_unlit_white_input_layout.Get(), false, false, [=]{
+			context->RSSetState(G->render_states->Wireframe());
+		});
+
+	}
+
+	if (FallingAndHangOn_TargetToRightHandDefine)
+	{
+		auto Z = SimpleMath::Vector3(FallingAndHangOn_01 - FallingAndHangOn_02).Cross(FallingAndHangOn_03 - FallingAndHangOn_02);
+		auto Y = Z.Cross(FallingAndHangOn_01 - FallingAndHangOn_02);
+		auto X = FallingAndHangOn_01 - FallingAndHangOn_02;
+		X.Normalize();
+		Y.Normalize();
+		Z.Normalize();
+		auto Test = SimpleMath::Matrix(X, Y, Z) * SimpleMath::Matrix::CreateTranslation(FallingAndHangOn_02);
+
+		set_box_world_matrix(SimpleMath::Matrix::CreateTranslation(-0.5, -0.5, -0.5) * SimpleMath::Matrix::CreateScale(50, 50, 0.05) * Test);
+		set_scene_constant_buffer(context);
+		DrawQuad(context, G->box_effect.get(), [=]{
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+	}
+
+	/////debug///
+
+
+	JointHelpers::AnimToChain(Chains.HipsSpine2, this, EveIKSolver->chainRef(0));
+	JointHelpers::localToModel(Chains.HipsSpine2.size(), EveIKSolver->chainRef(0));
+	Spine2Pos = (EveIKSolver->chainRef(0)[Chains.HipsSpine2.size() - 1].matrix() * modelTransform).Translation();
+
+	JointHelpers::AnimToChain(Chains.HipsRightShoulder, this, EveIKSolver->chainRef(0));
+	JointHelpers::localToModel(Chains.HipsRightShoulder.size(), EveIKSolver->chainRef(0));
+	RightShoulderPos = (EveIKSolver->chainRef(0)[Chains.HipsRightShoulder.size() - 1].matrix() * modelTransform).Translation();
+
+	RightArmPos = (CurrentJoints[Chains.RightArmRightHand[0]].matrix()*EveIKSolver->chainRef(0)[Chains.HipsRightShoulder.size() - 1].matrix() * modelTransform).Translation();
+	
+	for (int i = 0; i < Count; i++)
+	{
+		JointSQT & Joint = Joints[i];
+
+		orient(Joint).Normalize();
+	}
+
+
+	//auto cosAlfa = oldDir.Dot(newDir);
+
+	//auto Alfa = acos(cosAlfa);
+
+	//sprintf(DebugBuffer, "fixJointRotation [%f] [%f] %f %f %f %f %f %f\n", cosAlfa, Alfa, oldDir.x, oldDir.y, oldDir.z, newDir.x, newDir.y, newDir.z); Debug();
+
+	//if (cosAlfa > 0.0f && fabs(cosAlfa - 1.000000f) < 0.0000001f)
+	//{
+	//	return;
+	//}
+
+	//sprintf(DebugBuffer, "exec fixJointRotation\n"); Debug();
+
+	{
+		auto _new = SimpleMath::Vector3::TransformNormal(oldDir, SimpleMath::Matrix::CreateFromAxisAngle(Axis, Angle));// :CreateFromQuaternion(SimpleMath::Quaternion::CreateFromAxisAngle(Axis, Angle)));
+		auto test = _new - newDir;
+		if (test.Length() > 0.0001f)
+		{
+			auto _new2 = SimpleMath::Vector3::TransformNormal(oldDir, SimpleMath::Matrix::CreateFromAxisAngle(-Axis, Angle)); // SimpleMath::Matrix::CreateFromQuaternion(SimpleMath::Quaternion::CreateFromAxisAngle(-Axis, Angle)));
+			auto test2 = _new2 - newDir;
+			if (test2.Length() > 0.0001f)
+			{
+				return;
+			}
+		}
+	}
+
+				RightArmJointPosition = GetRightArmJointLocation();
+
+				//sprintf(DebugBuffer, "physCollision(1) %f %f %f | %f %f %f %f\n", Offset.x, Offset.y, Offset.z, CurrentJoints[64][1].x, CurrentJoints[64][1].y, CurrentJoints[64][1].z, CurrentJoints[64][1].w); Debug();

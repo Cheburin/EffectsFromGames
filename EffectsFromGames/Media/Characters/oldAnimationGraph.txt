@@ -1,0 +1,140 @@
+	bool bTransitionActivated;
+	currentNode;
+	targetNode;
+	transitionAnimation;
+
+	auto idleToWalkingTransition = makeAnimationTransition(idleAnimation, walkingAnimation, 0.5,
+		[](double t, double d){
+			return t / d;
+		},
+		[](double elapsedTime, Animation *a1, Animation *a2){
+			SimpleMath::Vector3 Stub;
+
+			std::pair<SimpleMath::Vector3, SimpleMath::Vector3> pair(SimpleMath::Vector3(.0, .0, .0), SimpleMath::Vector3(.0, .0, .0));
+
+			a2->advanse(elapsedTime, pair.second);
+
+			return pair;
+		}
+	);
+	auto walkingToIdleTransition = makeAnimationTransition(walkingAnimation, idleAnimation, 0.5,
+		[](double t, double d){
+			return t / d;
+		},
+		[](double elapsedTime, Animation *a1, Animation *a2){
+			SimpleMath::Vector3 Stub;
+
+			std::pair<SimpleMath::Vector3, SimpleMath::Vector3> pair(SimpleMath::Vector3(.0, .0, .0), SimpleMath::Vector3(.0, .0, .0));
+
+			a2->advanse(elapsedTime, pair.second);
+
+			return pair;
+		}
+	);
+	auto idleToJumpTransition = makeAnimationTransition(idleAnimation, jumpAnimation, 0.5,
+		[](double t, double d){
+		return t / d;
+	},
+		[](double elapsedTime, Animation *a1, Animation *a2){
+		SimpleMath::Vector3 Stub;
+
+		std::pair<SimpleMath::Vector3, SimpleMath::Vector3> pair(SimpleMath::Vector3(.0, .0, .0), SimpleMath::Vector3(.0, .0, .0));
+
+		a2->advanse(elapsedTime, pair.second);
+
+		return pair;
+	}
+	);
+	auto walkingToJumpTransition = makeAnimationTransition(walkingAnimation, jumpAnimation, 0.5,
+		[](double t, double d){
+		return t / d;
+	},
+		[](double elapsedTime, Animation *a1, Animation *a2){
+		SimpleMath::Vector3 Stub;
+
+		std::pair<SimpleMath::Vector3, SimpleMath::Vector3> pair(SimpleMath::Vector3(.0, .0, .0), SimpleMath::Vector3(.0, .0, .0));
+
+		a2->advanse(elapsedTime, pair.second);
+
+		return pair;
+	}
+	);
+
+	auto JumpToIdleTransition = makeAnimationTransition(jumpAnimation, idleAnimation, 0.5,
+		[](double t, double d){
+		return t / d;
+	},
+		[](double elapsedTime, Animation *a1, Animation *a2){
+		SimpleMath::Vector3 Stub;
+
+		std::pair<SimpleMath::Vector3, SimpleMath::Vector3> pair(SimpleMath::Vector3(.0, .0, .0), SimpleMath::Vector3(.0, .0, .0));
+
+		a2->advanse(elapsedTime, pair.second);
+
+		return pair;
+	}
+	);
+
+	auto JumpToWalkingTransition = makeAnimationTransition(jumpAnimation, walkingAnimation, 0.5,
+		[](double t, double d){
+		return t / d;
+	},
+		[](double elapsedTime, Animation *a1, Animation *a2){
+		SimpleMath::Vector3 Stub;
+
+		std::pair<SimpleMath::Vector3, SimpleMath::Vector3> pair(SimpleMath::Vector3(.0, .0, .0), SimpleMath::Vector3(.0, .0, .0));
+
+		a2->advanse(elapsedTime, pair.second);
+
+		return pair;
+	}
+	);
+
+	auto IdleToJumpUpTransition = makeAnimationTransition(idleAnimation, JumpUpAnimation, 0.5,
+	[](double t, double d){
+		return t / d;
+	},
+	[](double elapsedTime, Animation *a1, Animation *a2){
+		SimpleMath::Vector3 Stub;
+
+		std::pair<SimpleMath::Vector3, SimpleMath::Vector3> pair(SimpleMath::Vector3(.0, .0, .0), SimpleMath::Vector3(.0, .0, .0));
+
+		a2->advanse(elapsedTime, pair.second);
+
+		return pair;
+	}
+	);
+
+	auto JumpUpToIdleTransition = makeAnimationTransition(JumpUpAnimation, idleAnimation, 0.5,
+	[](double t, double d){
+		return t / d;
+	},
+		[](double elapsedTime, Animation *a1, Animation *a2){
+		SimpleMath::Vector3 Stub;
+
+		std::pair<SimpleMath::Vector3, SimpleMath::Vector3> pair(SimpleMath::Vector3(.0, .0, .0), SimpleMath::Vector3(.0, .0, .0));
+
+		a2->advanse(elapsedTime, pair.second);
+
+		return pair;
+	}
+	);
+
+
+
+if (!EveAnimationGraph->IsPlaying() && EveAnimationGraph->getState() == AnimationState::jumpUp)
+		{
+			EveAnimationGraph->setState(AnimationState::jumpUp);
+		}
+		if (EveAnimationGraph->getState() == AnimationState::idle)
+		{
+			EveAnimationGraph->setState(AnimationState::jumpUp);
+		}
+		if (EveAnimationGraph->getState() == AnimationState::walking)
+		{
+			EveAnimationGraph->setState(AnimationState::jump);
+		}
+
+	IsKeyPressed<XKey>(kb, []{
+		EveAnimationGraph->setState(AnimationState::climbing);
+	});

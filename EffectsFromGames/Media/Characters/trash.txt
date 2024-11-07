@@ -1,0 +1,36 @@
+void getJointFrame(Character * skelet, char * JointName, std::function<void __cdecl(SimpleMath::Matrix M)> OnFrame)
+
+	if (kb.X){
+		if (EveAnimationGraph->getState() == AnimationState::idle)
+			EveAnimationGraph->setState(AnimationState::walking);
+		else if (EveAnimationGraph->getState() == AnimationState::walking)
+			EveAnimationGraph->setState(AnimationState::idle);
+	}
+
+	static bool IsF3Down = false;
+	if (kb.IsKeyDown(DirectX::Keyboard::Keys::F3)){
+		IsF3Down = true;
+	}
+	if (IsF3Down && kb.IsKeyUp(DirectX::Keyboard::Keys::F3)){
+		IsF3Down = false;
+	}
+	static bool IsF4Down = false;
+	if (kb.IsKeyDown(DirectX::Keyboard::Keys::F4)){
+		IsF4Down = true;
+	}
+	if (IsF4Down && kb.IsKeyUp(DirectX::Keyboard::Keys::F4)){
+		IsF4Down = false;
+		ShowCapsule = !ShowCapsule;
+	}
+	static bool IsF5Down = false;
+	if (kb.IsKeyDown(DirectX::Keyboard::Keys::F5)){
+		IsF5Down = true;
+	}
+	if (IsF5Down && kb.IsKeyUp(DirectX::Keyboard::Keys::F5)){
+		IsF5Down = false;
+		ShowJoints = !ShowJoints;
+	}
+		if (EveAnimationGraph->getState() == AnimationState::walking)
+		{
+		//move by gravitation
+		GWorld.Collision(S, SimpleMath::Vector3(0,-0.10,0), GWorld.Capsules["eve"], hitInfo);

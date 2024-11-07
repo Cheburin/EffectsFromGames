@@ -1,0 +1,64 @@
+grab onto the ledge
+void World::Collision(const SimpleMath::Vector3& S, const SimpleMath::Vector3& V, Capsule& ca, HitInfo& hi)
+{
+
+	physCollision(true, ca, V, hi.hit);
+
+	//ca.origin = S + V;
+}
+	{
+		g_EvePath.Count = 0;
+		g_EvePath.Pivots[0] = SimpleMath::Vector4(0, 1, -20, 1);
+		g_EvePath.Pivots[1] = SimpleMath::Vector4(0, 1, -45, 1);
+		g_EvePath.Pivots[2] = SimpleMath::Vector4(-15, 1, -60, 1);
+		g_EvePath.Pivots[3] = SimpleMath::Vector4(0, 1, -20, 1);
+	}
+
+				evalFallingPathParameters(5.0f*GetCharacterJointTranslation(Eve->skelet, 64).y + GWorld.Capsules["eve"].origin.y);
+
+				Impl->local_duration = PathTime;
+	void evalFallingPathParameters(float height)
+	{
+		float y0 = height;
+		float yPeak = height-1.0f;
+		float yEnd = 0.f;
+
+		float PathLength = 1.0f;
+		float PathSpeed = .025f;
+
+		PathTime = PathLength / PathSpeed;
+
+		PathG = SimpleMath::Vector3(0.f, 4.0f*(y0 - 2.0f*yPeak + yEnd) / (PathTime*PathTime), 0.f);
+		PathInitialVelocity = SimpleMath::Vector3(PathSpeed, -1.0f*(3.0f*y0 - 4.0f*yPeak + yEnd) / (PathTime), 0.f);
+
+		////////simulation
+		float dT = 0.f;
+		SimpleMath::Vector3 PathNextLoc;
+		for (; dT < PathTime;)
+		{
+			dT += 0.01f;
+			PathNextLoc = SimpleMath::Vector3(0,y0,0) + dT * PathInitialVelocity + 0.5f * (dT * dT) * PathG;
+			//char buffer[1024]; sprintf(buffer, "FallingAndHangOnAnimation ---- %f %f %f\n", PathNextLoc.x, PathNextLoc.y, PathNextLoc.z); OutputDebugStringA(buffer);
+		}
+
+		//char buffer[1024]; sprintf(buffer, "FallingAndHangOnAnimation ---- %f %f %f\n", PathNextLoc.x, PathNextLoc.y, PathNextLoc.z); OutputDebugStringA(buffer);
+	}
+		auto v1 = CollisionImpactNormal.Cross(SimpleMath::Vector3(0, 1, 0));
+		SimpleMath::Vector3(0, 1, 0).
+
+
+
+
+				float s = 0;
+				for (int i = 0;i<100 ;i++)
+				{
+					s += 0.1f;
+					auto t = Curve::getTByS(A, B, C, D, s);
+					auto PathNextLoc = Curve::bezier(A, B, C, D, t);// ;;
+					char buffer[1024]; sprintf(buffer, "FallingAndHangOnAnimation ---- %f %f %f %f\n", PathNextLoc.x, PathNextLoc.y, s, t); OutputDebugStringA(buffer);
+					if (PathNextLoc.x>1.5f)
+						break;
+				}
+
+				char buffer[1024]; sprintf(buffer, "FallingAndHangOnAnimation ---- %f %f %f\n", A.x, A.y, A.z); OutputDebugStringA(buffer);
+				transition_time = std::string(conditionNode.node->name) == "FallingAndHangOn" ? 0.001 : transition_time;

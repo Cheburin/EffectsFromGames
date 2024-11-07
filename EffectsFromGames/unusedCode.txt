@@ -1,0 +1,119 @@
+﻿				//very very strang equation
+				{
+					if (equel(delta.Length(), cylinder.r))
+					{
+						if (i == 0)
+						{
+							if (cylinderBA.Dot(delta) <= .0f)
+							{
+								rootFound = true;
+								lastRootFoundOnIndex1 = j;
+								lastRootFoundOnIndex2 = i;
+								t = 0.0f;
+							}
+						}
+						else
+						{
+							if (cylinderBA.Dot(delta) >= .0f)
+							{
+								rootFound = true;
+								lastRootFoundOnIndex1 = j;
+								lastRootFoundOnIndex2 = i;
+								t = 0.0f;
+							}
+						}
+					}
+				}
+			//very strange equation
+			{
+				auto cylinderX = test[i];
+				auto ret = (cylinderX - line.A).Dot(lineBA) / lineBA.Dot(lineBA);
+				if (.0f <= ret&&ret <= 1.0f)
+				{
+					auto lineX = line.A + ret*lineBA;
+					auto delta = lineX - cylinderX;
+					if (equel(delta.Length(), cylinder.r))
+					{
+						if (i == 0)
+						{
+							if (cylinderBA.Dot(delta) <= .0f)
+							{
+								rootFound = true;
+								lastRootFoundOnIndex = i;
+								t = 0.0f;
+							}
+						}
+						else
+						{
+							if (cylinderBA.Dot(delta) >= .0f)
+							{
+								rootFound = true;
+								lastRootFoundOnIndex = i;
+								t = 0.0f;
+							}
+						}
+					}
+				}
+			}
+			//very strange equation
+			{
+				auto delta = test[i];
+				if (equel(delta.Length(), cylinder.r))
+				{
+					auto lineX = result[i];
+					auto ret = (lineX - cylinder.A).Dot(cylinderBA) / cylinderBA.Dot(cylinderBA);
+					if (.0f <= ret&&ret <= 1.0f)
+					{
+						rootFound = true;
+						lastRootFoundOnIndex = i;
+						t = 0.0f;
+					}
+				}
+			}
+
+		//very strange equation
+		{
+			if (equel(abs(lineDotS),cylinder.r))
+			{
+				SkewLinesArgs = getDistanceBetweenSkewLines(cylinder.A, cylinderBA, line.A, lineBA);
+
+				//check only if impact possess line cut (with finit cylinder)
+				if (.0f <= SkewLinesArgs.x&&SkewLinesArgs.x <= 1.0f && .0f <= SkewLinesArgs.y&&SkewLinesArgs.y <= 1.0f)
+				{
+					rootFound = true;
+					t = 0.0f;
+				}
+			}
+		}
+
+				if (equel(abs(faceDotS), cylinder.r))
+				{
+					t = 0.0f;
+				}
+				else
+				{
+
+
+	if (collision)
+	{
+		if (worldDistanceOffset.Length() < 0.001f)
+		{
+			worldDistanceOffset = SimpleMath::Vector3();
+		}
+		else if (lastImpactDelta.Length() < ca.r)
+		{
+			worldDistanceOffset -= ((ca.r - lastImpactDelta.Length() + 0.001f*0.5f) * normalize(lastImpactDelta));
+		}
+	}
+			if (remaining_collision)
+			{
+				if (remainingWorldDistanceOffset.Length() < 0.001f)
+				{
+					remainingWorldDistanceOffset = SimpleMath::Vector3();
+				}
+				else if (lastImpactDelta.Length() < ca.r)
+				{
+					remainingWorldDistanceOffset -= ((ca.r - lastImpactDelta.Length() + 0.001f*0.5f) * normalize(lastImpactDelta));
+				}
+			}
+

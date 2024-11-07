@@ -1,0 +1,96 @@
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	///draw Eve path
+	{
+		if (state_grab_onto_the_ledge)
+		{
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			SimpleMath::Vector3 GetCharacterJointTranslation(CharacterSkelet * characterSkelet, int Index);
+			auto T = GetCharacterJointTranslation(Eve->skelet, 54);
+
+			T = SimpleMath::Vector3::Transform(T, GWorld.WorldTransforms["eveSkinnedModel"]);
+			T = GWorld.Capsules["eve"].origin + SimpleMath::Vector3::Transform(T, Matrix::CreateFromQuaternion(GWorld.Capsules["eve"].orientation));
+
+			static SimpleMath::Vector3 _Prev_T;
+			if (g_EvePath.Count < 8)
+			{
+				if (_Prev_T.Length() == 0.0f){
+					g_EvePath.Pivots[int(g_EvePath.Count)] = SimpleMath::Vector4(T.x, T.y, T.z, 1);
+					g_EvePath.Count = g_EvePath.Count + 1;
+					_Prev_T = T;
+				}
+				else
+				{
+					if ((_Prev_T - T).Length()>8.0f)
+					{
+						g_EvePath.Pivots[int(g_EvePath.Count)] = SimpleMath::Vector4(T.x, T.y, T.z, 1);
+						g_EvePath.Count = g_EvePath.Count + 1;
+						_Prev_T = T;
+						sprintf(DebugBuffer, "path %f %f %f %f \n", g_EvePath.Count, T.x, T.y, T.z); Debug();
+					}
+				}
+			}
+			else
+			{
+				g_EvePath.Count = 0;
+				_Prev_T = SimpleMath::Vector3();
+			}
+		}
+	}
+
+
+	static SimpleMath::Vector3 StartForwardVelocity = SimpleMath::Vector3(10, 10, 0);
+			//StartForwardVelocity = (1.0f / simulationTime) * forward;
+			//sprintf(DebugBuffer, "StartForwardVelocity(1) %f %f %f\n", StartForwardVelocity.x, StartForwardVelocity.y, StartForwardVelocity.z); Debug();
+
+
+			forwardVelocity = evalBallisticPathStartVelocity();
+
+			forward = simulationTime*forwardVelocity;
+
+
+
+	///draw Eve path
+	{
+		if (state_grab_onto_the_ledge)
+		{
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			SimpleMath::Vector3 GetCharacterJointTranslation(CharacterSkelet * characterSkelet, int Index);
+			auto T = GetCharacterJointTranslation(Eve->skelet, 54);
+
+			T = SimpleMath::Vector3::Transform(T, GWorld.WorldTransforms["eveSkinnedModel"]);
+			T = GWorld.Capsules["eve"].origin + SimpleMath::Vector3::Transform(T, Matrix::CreateFromQuaternion(GWorld.Capsules["eve"].orientation));
+
+			static SimpleMath::Vector3 _Prev_T;
+			if (g_EvePath.Count < 8)
+			{
+				if (_Prev_T.Length() == 0.0f){
+					g_EvePath.Pivots[int(g_EvePath.Count)] = SimpleMath::Vector4(T.x, T.y, T.z, 1);
+					g_EvePath.Count = g_EvePath.Count + 1;
+					_Prev_T = T;
+				}
+				else
+				{
+					if ((_Prev_T - T).Length()>8.0f)
+					{
+						g_EvePath.Pivots[int(g_EvePath.Count)] = SimpleMath::Vector4(T.x, T.y, T.z, 1);
+						g_EvePath.Count = g_EvePath.Count + 1;
+						_Prev_T = T;
+						sprintf(DebugBuffer, "path %f %f %f %f \n", g_EvePath.Count, T.x, T.y, T.z); Debug();
+					}
+				}
+			}
+			else
+			{
+				g_EvePath.Count = 0;
+				_Prev_T = SimpleMath::Vector3();
+			}
+		}
+	}
+
+						ballisticHandOffset = SimpleMath::Vector3::Transform(A->CurrentMetaChannels[1], Matrix(GWorld.WorldTransforms["eveSkinnedModel"]));
+	extractHeight = std::string(path) != "Media\\Animations\\TreadingWater.dae" && std::string(path) != "Media\\Animations\\Swimming.dae";
+	if (std::string(path) == "Media\\Animations\\JumpForward.dae")
+	{
+		ret->Impl->global_duration = ret->Impl->local_duration = 0.70f;
+	}
+, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations

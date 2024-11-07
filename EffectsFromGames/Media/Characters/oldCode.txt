@@ -1,0 +1,36 @@
+bool simulation_state_manual_control = false;
+bool simulation_state_next_step = false;
+
+	SimpleMath::Vector3 getInterpolatedOriginTranslation()
+	{
+		return SimpleMath::Vector3(Impl->interpolatedOrigin.X[2].x, Impl->interpolatedOrigin.X[2].y, Impl->interpolatedOrigin.X[2].z);
+	}
+
+	/////set
+	void setOrigin(SimpleMath::Matrix Current)
+	{
+		JointSQT sqt;
+
+		DirectX::XMVECTOR S, Q, T;
+		DirectX::FXMMATRIX M = Current;
+		if (!XMMatrixDecompose(&S, &Q, &T, M))
+		{
+			throw "JointSamples set failed (XMMatrixDecompose return false)";
+		}
+		Impl->interpolatedOrigin.X[0] = Impl->currentOrigin.X[0] = Impl->targetOrigin.X[0] = SimpleMath::Vector4(S);
+		Impl->interpolatedOrigin.X[1] = Impl->currentOrigin.X[1] = Impl->targetOrigin.X[1] = SimpleMath::Vector4(Q);
+		Impl->interpolatedOrigin.X[2] = Impl->currentOrigin.X[2] = Impl->targetOrigin.X[2] = SimpleMath::Vector4(T);
+	}
+
+	void offsetTargetOrigin(SimpleMath::Vector3 offset)
+	{
+		Impl->targetOrigin.X[2].x += offset.x;
+		Impl->targetOrigin.X[2].y += offset.y;
+		Impl->targetOrigin.X[2].z += offset.z;
+	}
+
+	virtual void setOrigin(SimpleMath::Matrix Current) = 0;
+
+	virtual void offsetTargetOrigin(SimpleMath::Vector3 offset) = 0;
+
+	virtual SimpleMath::Vector3 getInterpolatedOriginTranslation() = 0;

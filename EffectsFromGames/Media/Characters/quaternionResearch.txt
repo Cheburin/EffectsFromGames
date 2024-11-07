@@ -1,0 +1,27 @@
+		//test rotation
+		if (true)
+		{
+			orient(chain0[0]) = SimpleMath::Quaternion::Concatenate(orient(chain0[0]), SimpleMath::Quaternion::CreateFromAxisAngle(SimpleMath::Vector3(0, 0, 1), -3.14/3.0));
+		}
+
+XMQuaternionToAxisAngle
+
+		//SimpleMath::Vector3 axis = oldDir.Cross(newDir);
+		//axis.Normalize();
+		//float angle = acos(oldDir.Dot(newDir));
+		//orient(Joint) = SimpleMath::Quaternion::Concatenate(orient(Joint), SimpleMath::Quaternion::CreateFromAxisAngle(axis, angle));
+		quatToAxisAngle(orient(Joint), jointAngle, jointAxis);
+
+		auto rot = SimpleMath::Quaternion::CreateFromAxisAngle(jointAxis.Cross(oldDir), acos(jointAxis.Dot(oldDir)));
+
+		jointAxis = SimpleMath::Vector3::Transform(newDir, inverse(rot));
+
+		orient(Joint) = SimpleMath::Quaternion::CreateFromAxisAngle(jointAxis, jointAngle);
+
+
+		float jointAngle;
+		SimpleMath::Vector3 jointAxis;
+
+		//auto q0 = SimpleMath::Quaternion::CreateFromAxisAngle(normalize(oldDir.Cross(JointFrame.r[0])), acos(oldDir.Dot(JointFrame.r[0])));
+		//auto q1 = SimpleMath::Quaternion::CreateFromAxisAngle(normalize(oldDir.Cross(JointFrame.r[1])), acos(oldDir.Dot(JointFrame.r[1])));
+		//auto q2 = SimpleMath::Quaternion::CreateFromAxisAngle(normalize(oldDir.Cross(JointFrame.r[2])), acos(oldDir.Dot(JointFrame.r[2])));
