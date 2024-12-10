@@ -26,6 +26,7 @@ extern Box state_hanging_Ledge_Box;
 Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
 Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex, char * replace = nullptr);
 void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
+std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 
 namespace Curve
 {
@@ -70,6 +71,8 @@ struct JumpFromWallAnimation : public Animation
 		Anim->setRate(1);
 		Anim->setLooping(false);
 		extractAnimationMeta(Anim, true, .45f, getSkeletMatrix, calculateFramesTrans);
+
+		CurrentJoints = ::__AnimGetJointsByTime(Anim, 0.f);
 	}
 
 	~JumpFromWallAnimation()
@@ -79,20 +82,27 @@ struct JumpFromWallAnimation : public Animation
 		delete Impl;
 	}
 
+	std::vector<JointSQT>& __AnimGetJointsByTime(float Time)
+	{
+		return ::__AnimGetJointsByTime(Anim, Time);
+	};
+
 	void advanse(double elapsedTime, SimpleMath::Vector3& DeltaTranslation, SimpleMath::Quaternion& DeltaRotation)
 	{
 		Impl->prev_frameNo = Impl->frameNo;
 		Anim->advanse(elapsedTime, SimpleMath::Vector3(), SimpleMath::Quaternion());
-		
+
 		CurrentJoints = Anim->CurrentJoints;
 		CurrentMetaChannels = Anim->CurrentMetaChannels;
-		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
-			OppositeForward,
-			SimpleMath::Quaternion(CurrentJoints[64][1])
-		);
-		CurrentJoints[64][2] = HipsLocation;
 
-		sprintf(DebugBuffer, "JumpFromWallAnim yaw %f Time %f\n", Quat().decompose0(CurrentJoints[64][1]).yaw0, Impl->global_time); Debug();
+		RootSampledRotation = SimpleMath::Quaternion(CurrentJoints[64][1]);
+		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
+			RootDeltaRotation,
+			RootSampledRotation
+		);
+		//CurrentJoints[64][2] = HipsLocation;
+
+		//sprintf(DebugBuffer, "JumpFromWallAnim yaw %f Time %f\n", Quat().decompose0(CurrentJoints[64][1]).yaw0, Impl->global_time); Debug();
 
 		CurrentDistanceOnCurve += elapsedTime*ConstVelocityOnCurve;
 		const auto CurLocation = Curve::bezier(A, B, C, D, Curve::getTByS(A, B, C, D, CurrentDistanceOnCurve));
@@ -158,20 +168,20 @@ struct JumpFromWallAnimation : public Animation
 		C = SimpleMath::Vector3::Transform(C, FrameOfReference);
 		D = SimpleMath::Vector3::Transform(D, FrameOfReference);
 
-		auto ToModel = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
-		ToModel = ToModel.Invert();
-		auto V1 = SimpleMath::Vector3::TransformNormal(GWorld.Capsules["eve"].getMatrix().Right(), ToModel); V1.Normalize();
-		auto V2 = SimpleMath::Vector3::TransformNormal(x, ToModel);  V2.Normalize();
-		auto Alfa = atan2(V1.Cross(V2).Length(), V1.Dot(V2));
-		OppositeForward = SimpleMath::Quaternion::CreateFromAxisAngle(V1.Cross(V2), Alfa);
-
-		sprintf(DebugBuffer, "JumpFromWallAnim Alfa %f\n", Alfa); Debug();
+		//auto ToModel = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+		//ToModel = ToModel.Invert();
+		auto V1 = GWorld.Capsules["eve"].getMatrix().Right();
+		auto V2 = x;
+		TDeltaRotation DeltaRotation(V1, V2);
+		//auto Alfa = atan2(V1.Cross(V2).Length(), V1.Dot(V2));
+		//OppositeForward = SimpleMath::Quaternion::CreateFromAxisAngle(V1.Cross(V2), Alfa);
+		//sprintf(DebugBuffer, "JumpFromWallAnim Alfa %f\n", Alfa); Debug();
 		//sprintf(DebugBuffer, "FrameOfReference.Right() %f %f %f\n", FrameOfReference.Right().x, FrameOfReference.Right().y, FrameOfReference.Right().z); Debug();
+		//std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index);
+		//HipsLocation = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[64][2];
+		Simulation::UpdateCapsuleRotation_SetParams(DeltaRotation.Delta, SimpleMath::Quaternion::CreateFromRotationMatrix(SimpleMath::Matrix(-FrameOfReference.Right(), FrameOfReference.Up(), -FrameOfReference.Backward())));
 
 		Anim->reset();
-
-		std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index);
-		HipsLocation = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[64][2];
 
 		ConstVelocityOnCurve = Curve::arcLength(A, B, C, D, 1.f)/2.f;
 

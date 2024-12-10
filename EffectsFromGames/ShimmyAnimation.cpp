@@ -794,34 +794,41 @@ struct FClimbingPathHelper : IClimbingPathHelper
 				}
 			}
 
-			if (MasterHandIndex == 1 && 0.250f <= LocalTime)
+			if (0.250f <= LocalTime)
 			{
-				if (AnimationLocalTime < Owner.ShimmyMoveRightCatchLedgeTime)
+				SimpleMath::Vector3 handLocation;
+				if (MasterHandIndex == 1)
 				{
-					auto Index = CurrentSegmentIndex;
-					const auto RelCoord = GetSegmentCoord(SlaveHandLocation, CurrentSegmentIndex);
-					if (1.f < RelCoord) Index = NextSegmentIndex;
-					DeltaTranslation += ToSegmentBasis(SlaveHandLocation, Index) - SlaveHandLocation;
+					if (AnimationLocalTime < Owner.ShimmyMoveRightCatchLedgeTime)
+					{
+						handLocation = SlaveHandLocation;
+					}
+					else
+					{
+						handLocation = MasterHandLocation;
+					}
 				}
-				else
+				else if (MasterHandIndex == 0)
 				{
-					DeltaTranslation += ToSegmentBasis(MasterHandLocation, CurrentSegmentIndex) - MasterHandLocation;
+					if (AnimationLocalTime < Owner.ShimmyMoveLeftCatchLedgeTime)
+					{
+						handLocation = MasterHandLocation;
+					}
+					else
+					{
+						handLocation = SlaveHandLocation;
+					}
 				}
+				auto Index = CurrentSegmentIndex;
+				const auto RelCoord = GetSegmentCoord(handLocation, CurrentSegmentIndex);
+				if (1.f < RelCoord) Index = NextSegmentIndex;
+				else if (RelCoord < 0.f) Index = PrevSegmentIndex;
+				DeltaTranslation += ToSegmentBasis(handLocation, Index) - handLocation;
 			}
-			else if (MasterHandIndex == 0 && 0.250f <= LocalTime)
-			{
-				if (AnimationLocalTime <Owner.ShimmyMoveLeftCatchLedgeTime)
-				{
-					DeltaTranslation += ToSegmentBasis(MasterHandLocation, CurrentSegmentIndex) - MasterHandLocation;
-				}
-				else
-				{
-					auto Index = CurrentSegmentIndex;
-					const auto RelCoord = GetSegmentCoord(SlaveHandLocation, CurrentSegmentIndex);
-					if (RelCoord < 0.f) Index = PrevSegmentIndex;
-					DeltaTranslation += ToSegmentBasis(SlaveHandLocation, Index) - SlaveHandLocation;
-				}
-			}
+
+			GWorld.Capsules["eve"].orientation = Segments[CurrentSegmentIndex].MakeCharacterOrientation();
+
+			DeltaRotation = SimpleMath::Quaternion::Identity;
 		};
 
 		if (CurrentPathState == EPath::Corner_Inside)
@@ -1099,15 +1106,15 @@ struct FClimbingPathHelper : IClimbingPathHelper
 		SimpleMath::Vector3 HandLocation;
 		if (chanel == 1) // move right
 		{
-			auto StartLeftHand =  SampleMeta(Animation->Corner_Outside_Hanging, 0.f, 1) + SampleMeta(Animation->Corner_Outside_Hanging, 0.f, 0);
-			auto FinishLeftHand = SampleMeta(Animation->Corner_Outside_Hanging, 8.5f / 24.f, 1) + SampleMeta(Animation->Corner_Outside_Hanging, 8.5f / 24.f, 0);
+			auto StartLeftHand = SampleMeta(Animation->Corner_Outside_Hanging, 0.f, 1);
+			auto FinishLeftHand = SampleMeta(Animation->Corner_Outside_Hanging, 8.5f / 24.f, 1) + (SampleMeta(Animation->Corner_Outside_Hanging, 8.5f / 24.f, 0) - SampleMeta(Animation->Corner_Outside_Hanging, 0.f, 0));
 			auto OffsetToHoldLeftHand = StartLeftHand - FinishLeftHand;
 			HandLocation = OffsetToHoldLeftHand + SampleMeta(Animation->Corner_Outside_Hanging, 8.5f / 24.f, chanel + 1) + (SampleMeta(Animation->Corner_Outside_Hanging, 8.5f / 24.f, 0) - SampleMeta(Animation->Corner_Outside_Hanging, 0.f, 0));
 		}
 		else
 		{
-			auto StartRightHand = SampleMeta(Animation->Corner_Outside_Hanging, 1.f, 2) + SampleMeta(Animation->Corner_Outside_Hanging, 1.f, 0);
-			auto FinishRightHand = SampleMeta(Animation->Corner_Outside_Hanging, 1.f - 8.5f / 24.f, 2) + SampleMeta(Animation->Corner_Outside_Hanging, 1.f - 8.5f / 24.f, 0);
+			auto StartRightHand = SampleMeta(Animation->Corner_Outside_Hanging, 1.f, 2);
+			auto FinishRightHand = SampleMeta(Animation->Corner_Outside_Hanging, 1.f - 8.5f / 24.f, 2) + (SampleMeta(Animation->Corner_Outside_Hanging, 1.f - 8.5f / 24.f, 0) - SampleMeta(Animation->Corner_Outside_Hanging, 1.f, 0));
 			auto OffsetToHoldRightHand = StartRightHand - FinishRightHand;
 			HandLocation = OffsetToHoldRightHand + SampleMeta(Animation->Corner_Outside_Hanging, 1.f - 8.5f / 24.f, chanel + 1) + (SampleMeta(Animation->Corner_Outside_Hanging, 1.f - 8.5f / 24.f, 0) - SampleMeta(Animation->Corner_Outside_Hanging, 1.f, 0));
 		}

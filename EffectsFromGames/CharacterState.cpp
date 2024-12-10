@@ -71,3 +71,7 @@ char* Hands[2] = { LeftHandName, RightHandName };
 std::vector<Capsule> DebugCapsule;
 
 bool state_movement_is_obstructed = false;
+
+float state_CapsulAlfa_WS;
+
+float state_HipsAlfa_WS;

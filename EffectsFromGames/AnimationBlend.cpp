@@ -17,6 +17,7 @@ extern char DebugBuffer[1024];
 extern World GWorld;
 void Debug();
 std::vector<JointSQT>& __AnimGetLastJoints(AnimationBase* Anim);
+std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 
 AnimationLinearBlend::~AnimationLinearBlend()
 {
@@ -283,7 +284,7 @@ double GetBlendK(AnimationBase* blend)
 	return ret->BlendK;
 }
 
-std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index)
+std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index, float Time = 0)
 {
 	static std::vector<JointSQT> Dummy;
 	auto ret = (Animation3*)blend;
@@ -293,7 +294,7 @@ std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index)
 	}
 	else if (index == 2)
 	{
-		return __AnimGetLastJoints(ret->Impl->animation2);
+		return __AnimGetJointsByTime(ret->Impl->animation2, Time);
 	}
 	else
 	{
@@ -301,9 +302,9 @@ std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index)
 	}
 }
 
-void __BlendSetRoot2Rotation(AnimationBase* blend, SimpleMath::Quaternion InverseRotation)
+void __BlendSetAnimation2RootDeltaRotation(AnimationBase* blend, SimpleMath::Quaternion InverseRotation)
 {
-	void __AnimSetRootRotation(AnimationBase* Anim, SimpleMath::Quaternion RootRotation);
+	void __AnimSetRootDeltaRotation(AnimationBase* Anim, SimpleMath::Quaternion RootRotation);
 	auto ret = (Animation3*)blend;
-	__AnimSetRootRotation(ret->Impl->animation2, InverseRotation);
+	__AnimSetRootDeltaRotation(ret->Impl->animation2, InverseRotation);
 }

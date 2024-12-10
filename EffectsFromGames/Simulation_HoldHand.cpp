@@ -25,9 +25,10 @@ namespace Simulation
 		if (!bInit)
 		{
 			bInit = true;
-			HoldWhilePlaying.insert("hangingIdle");
-			HoldWhilePlaying.insert("Jump_To_Hang");
-			HoldWhilePlaying.insert("Hanging_Idle_With_OutLeg");
+			HoldWhilePlaying.insert("Jump_To_Hang_WithOut_Leg");
+			HoldWhilePlaying.insert("Hanging_Idle_WithOut_Leg");
+			HoldWhilePlaying.insert("Jump_To_Hang_With_Leg");
+			HoldWhilePlaying.insert("Hanging_Idle_With_Leg");
 			HoldWhilePlaying.insert("Climb_Look_Idle_L");
 			HoldWhilePlaying.insert("Climb_Look_Idle_R");
 		}

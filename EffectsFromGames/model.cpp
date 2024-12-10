@@ -724,6 +724,8 @@ extern Box state_hanging_Ledge_Box;
 extern SimpleMath::Vector3 cameraForward;
 
 Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
+std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
+SimpleMath::Quaternion __AnimSubstructRootDeltaRotation(AnimationBase* Anim);
 
 void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet, TransformationFrame * frame)
 {
@@ -771,12 +773,6 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	extractAnimationMeta(Climb, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
 	Graph->registerAnimation("climbing", Climb);
 
-	auto HangingIdleAnimation = loadAnimation("Media\\Animations\\HangingIdle.dae", characterSkelet->FramesNamesIndex);
-	HangingIdleAnimation->setRate(1.0 / 1.0);
-	//HangingIdleAnimation->AddOffset(-gravityInEveSystemCoordinates);
-	extractAnimationMeta(HangingIdleAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
-	Graph->registerAnimation("hangingIdle", HangingIdleAnimation);
-
 	auto bracedHangHopUpAnimation = loadAnimation("Media\\Animations\\BracedHangHopUp.dae", characterSkelet->FramesNamesIndex);
 	bracedHangHopUpAnimation->setRate(1.0 / 2.0f);
 	bracedHangHopUpAnimation->setLooping(false);
@@ -817,18 +813,6 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	auto takeItAnimation = makeAnimationPose();
 	Graph->registerAnimation("take_it_pose", takeItAnimation);
 
-	auto JumpToHang = loadAnimation("Media\\Animations\\JumpToHang.dae", characterSkelet->FramesNamesIndex);
-	JumpToHang->setLooping(false);
-	//JumpToHang->AddOffset(-gravityInEveSystemCoordinates);
-	JumpToHang->setRate(2.0);
-	extractAnimationMeta(JumpToHang, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
-	Graph->registerAnimation("Jump_To_Hang", JumpToHang);
-
-	auto HangingIdleWithOutLeg = loadAnimation("Media\\Animations\\Edge\\HangingIdleWithOutLeg.dae", characterSkelet->FramesNamesIndex);
-	//HangingIdleWithOutLeg->AddOffset(-gravityInEveSystemCoordinates);
-	extractAnimationMeta(HangingIdleWithOutLeg, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
-	Graph->registerAnimation("Hanging_Idle_With_OutLeg", HangingIdleWithOutLeg);
-
 	auto FreehangClimb = loadAnimation("Media\\Animations\\FreehangClimb.dae", characterSkelet->FramesNamesIndex);
 	FreehangClimb->setLooping(false);
 	//FreehangClimb->AddOffset(-gravityInEveSystemCoordinates);
@@ -858,10 +842,12 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 
 	auto Climb_Look_Idle_L = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_L.FBX", characterSkelet->FramesNamesIndex);
 	extractAnimationMeta(Climb_Look_Idle_L, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto Climb_Look_Idle_L_Delta_Rotation = __AnimSubstructRootDeltaRotation(Climb_Look_Idle_L);
 	Graph->registerAnimation("Climb_Look_Idle_L", Climb_Look_Idle_L);
 
 	auto Climb_Look_Idle_R = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_R.FBX", characterSkelet->FramesNamesIndex);
 	extractAnimationMeta(Climb_Look_Idle_R, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto Climb_Look_Idle_R_Delta_Rotation = __AnimSubstructRootDeltaRotation(Climb_Look_Idle_R);
 	Graph->registerAnimation("Climb_Look_Idle_R", Climb_Look_Idle_R);
 
 	auto JumpFromWall = CreateJumpFromWallAnimation(characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
@@ -869,6 +855,27 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	//AnimationBase* ShimmyAnimationGetDebugAnimation(AnimationBase *animation);
 	//auto DebugAnimation = ShimmyAnimationGetDebugAnimation(LeftShimmy);
 	//Graph->registerAnimation("DebugAnimation", DebugAnimation);
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	auto Hanging_Idle_WithOut_Leg = loadAnimation("Media\\Animations\\Edge\\HangingIdleWithOutLeg.dae", characterSkelet->FramesNamesIndex);
+	extractAnimationMeta(Hanging_Idle_WithOut_Leg, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	Graph->registerAnimation("Hanging_Idle_WithOut_Leg", Hanging_Idle_WithOut_Leg);
+
+	auto Jump_To_Hang_WithOut_Leg = loadAnimation("Media\\Animations\\JumpToHangWithOutLeg.dae", characterSkelet->FramesNamesIndex);
+	Jump_To_Hang_WithOut_Leg->setLooping(false);
+	Jump_To_Hang_WithOut_Leg->setRate(2.0);
+	extractAnimationMeta(Jump_To_Hang_WithOut_Leg, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	Graph->registerAnimation("Jump_To_Hang_WithOut_Leg", Jump_To_Hang_WithOut_Leg);
+
+	////
+	auto Hanging_Idle_With_Leg = loadAnimation("Media\\Animations\\HangingIdleWithLeg.dae", characterSkelet->FramesNamesIndex);
+	extractAnimationMeta(Hanging_Idle_With_Leg, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	Graph->registerAnimation("Hanging_Idle_With_Leg", Hanging_Idle_With_Leg);
+
+	/*нужно взять одну позу, сделать из них две на время бленда(что то похожее есть в баллистик флайте)*/
+	auto Jump_To_Hang_With_Leg = makeAnimationPose();
+	Jump_To_Hang_With_Leg->CurrentJoints = __AnimGetJointsByTime(Hanging_Idle_With_Leg, 0.f);
+	Jump_To_Hang_With_Leg->CurrentMetaChannels = Hanging_Idle_With_Leg->CurrentMetaChannels;
+	Graph->registerAnimation("Jump_To_Hang_With_Leg", Jump_To_Hang_With_Leg);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	Climb_Look_Idle_R->subscribe("onPlayingChanged", [RightShimmy](bool state){
 		if (state)
@@ -906,7 +913,7 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			state_hanging_Hand_Location = ShimmyAnimationToSegmentBasis(LeftShimmy, state_hanging_Hand_Location);
 		}
 	});
-	HangingIdleWithOutLeg->subscribe("onPlayingChanged", [Graph, LeftShimmy, RightShimmy](bool state){
+	Hanging_Idle_WithOut_Leg->subscribe("onPlayingChanged", [Graph, LeftShimmy, RightShimmy](bool state){
 		if (state)
 		{
 			auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
@@ -925,7 +932,7 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			}
 		}
 	});
-	HangingIdleAnimation->subscribe("onPlayingChanged", [Graph, LeftShimmy, RightShimmy](bool state){
+	Hanging_Idle_With_Leg->subscribe("onPlayingChanged", [Graph, LeftShimmy, RightShimmy](bool state){
 		if (state)
 		{
 			auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
@@ -990,10 +997,16 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			//state_prevent_hanging = true;
 		}
 	});
-	static bool JumpToHangPlaying = false;
-	JumpToHang->subscribe("onPlayingChanged", [](bool state){
-		JumpToHangPlaying = state;
+	//static bool Jump_To_Hang_With_Leg_Playing = false;
+	//Jump_To_Hang_With_Leg->subscribe("onPlayingChanged", [](bool state){
+	//	Jump_To_Hang_With_Leg_Playing = state;
+	//});
+	
+	static bool Jump_To_Hang_WithOut_Leg_Playing = false;
+	Jump_To_Hang_WithOut_Leg->subscribe("onPlayingChanged", [](bool state){
+		Jump_To_Hang_WithOut_Leg_Playing = state;
 	});
+
 	static bool ready_hanging_on_wall = false;
 	static bool ready_for_moving_from_falling_and_hang_on = false;
 	FallingAndHangOn->subscribe("onPlayingChanged", [](bool state){
@@ -1094,7 +1107,7 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		;
 
 	Graph->createLink(bracedHangHopUpAnimation)
-		.setEndPoint(HangingIdleAnimation)
+		.setEndPoint(Hanging_Idle_With_Leg)
 		.reverse([](){ return consumeInputJump(); })
 		;
 
@@ -1114,15 +1127,6 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		.reverse([](){ return input_move.Length() > 0.0f && !state_falling && state_kneeling; })
 		.setEndPoint(FreehangClimb)
 		.reverse([](){ return input_move.Length() > 0.0f && !state_falling && !state_climbing && state_kneeling; })
-		;
-
-	Graph->createLink(HangingIdleAnimation)
-		.setEndPoint(bracedHangHopUpAnimation)
-		.reverse([](){ return start_hanging_Ledge_Name != state_hanging_Ledge_Name || start_hanging_Ledge_BoxIndex != state_hanging_Ledge_BoxIndex; })
-		.setEndPoint(jumpUpAnimation)
-		.reverse([](){ return state_jump && state_hanging; })
-		.setEndPoint(BallisticFly)
-		.reverse([](){ return state_hanging && state_BallisticFly_to_HangingIdle; })
 		;
 
 	Graph->createLink(FallingAndHangOn)
@@ -1151,24 +1155,45 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		.reverse([](){ return input_move.Length() > 0.0f; })
 		;
 
-	Graph->createLink(Climb)
-		.setEndPoint(HangingIdleAnimation)
-		.reverse([](){ return input_move.x > 0.0f; })
-		;
-	
-	Graph->createLink(Climb_Look_Idle_L)
-		.setEndPoint(HangingIdleAnimation)
-		.reverse([](){ 
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	auto FromCapsuleForwardToAnimHips = [](Animation* Anim, SimpleMath::Quaternion Delta)
+	{
+		sprintf(DebugBuffer, "Model::FromCapsuleForwardToAnimHips\n"); Debug();
+		Simulation::UpdateCapsuleRotation_SetParams(Delta, SimpleMath::Quaternion::Concatenate(Delta, GWorld.Capsules["eve"].orientation));
+	};
+	auto FromCapsuleForwardToLedgeForward = []()
+	{
+		sprintf(DebugBuffer, "Model::FromCapsuleForwardToLedgeForward\n"); Debug();
+		auto V1 = GWorld.Capsules["eve"].getMatrix().Right();
+		auto V2 = -state_hanging_Ledge_Box.worldBackSide;
+		TDeltaRotation DeltaRotation(V1, V2);
+		Simulation::UpdateCapsuleRotation_SetParams(DeltaRotation.Delta, state_hanging_Ledge_Box.GetPawnOrientation());
+	};
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+ 	Graph->createLink(Climb_Look_Idle_L)
+ 		.setEndPoint(Hanging_Idle_With_Leg)
+		.reverse([FromCapsuleForwardToAnimHips, Climb_Look_Idle_L_Delta_Rotation, Climb_Look_Idle_L](){
 			const auto Forward = GWorld.Capsules["eve"].getMatrix().Right();
-			return input_move.x < 0.0f && Forward.Cross(cameraForward).y > 0.f;
+			if (input_move.x < 0.0f && Forward.Cross(cameraForward).y > 0.f)
+			{
+				FromCapsuleForwardToAnimHips(Climb_Look_Idle_L, Climb_Look_Idle_L_Delta_Rotation);
+				return true;
+			}
+			return false;
 		})
 		;
 
 	Graph->createLink(Climb_Look_Idle_R)
-		.setEndPoint(HangingIdleAnimation)
-		.reverse([](){
+		.setEndPoint(Hanging_Idle_With_Leg)
+		.reverse([FromCapsuleForwardToAnimHips, Climb_Look_Idle_R_Delta_Rotation, Climb_Look_Idle_R](){
 			const auto Forward = GWorld.Capsules["eve"].getMatrix().Right();
-			return input_move.x < 0.0f && Forward.Cross(cameraForward).y < 0.f;
+			if (input_move.x < 0.0f && Forward.Cross(cameraForward).y < 0.f)
+			{
+				FromCapsuleForwardToAnimHips(Climb_Look_Idle_R, Climb_Look_Idle_R_Delta_Rotation);
+				return true;
+			}
+			return false;
 		})
 		;
 
@@ -1190,18 +1215,18 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		})
 		;
 
-	Graph->createLink(HangingIdleWithOutLeg)
+	Graph->createLink(Hanging_Idle_WithOut_Leg)
 		.setEndPoint(FallingAndHangOn)
 		.reverse([](){ return ready_hanging_on_wall; })
 		.setEndPoint(RightShimmy)
 		.reverse([RightShimmy](){ return fabs(input_move.y) == 0.0f && GetShimmyAnimationKind(RightShimmy) == 1; })
 		.setEndPoint(LeftShimmy)
 		.reverse([LeftShimmy](){ return fabs(input_move.y) == 0.0f && GetShimmyAnimationKind(LeftShimmy) == 1; })
-		.setEndPoint(JumpToHang)
-		.reverse([](){ return !JumpToHangPlaying; })
+		.setEndPoint(Jump_To_Hang_WithOut_Leg)
+		.reverse([](){ return !Jump_To_Hang_WithOut_Leg_Playing; })
 		;
 	
-	Graph->createLink(HangingIdleAnimation)
+	Graph->createLink(Hanging_Idle_With_Leg)
 		.setEndPoint(RightShimmy)
 		.reverse([RightShimmy](){ return fabs(input_move.y) == 0.0f && GetShimmyAnimationKind(RightShimmy) == 2; })
 		.setEndPoint(LeftShimmy)
@@ -1214,39 +1239,69 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			return state_movement_is_obstructed && 0.99999f < A && A < 1.00001f;
 		})
 		.setEndPoint(Climb_Look_Idle_L)
-		.reverse([](){ return input_move.x == 0.0f; })
+		.reverse([FromCapsuleForwardToLedgeForward](){
+			if (input_move.x == 0.0f)
+			{
+				FromCapsuleForwardToLedgeForward();
+				return true;
+			}
+			return false;
+		})
 		.setEndPoint(Climb_Look_Idle_R)
-		.reverse([](){ return input_move.x == 0.0f; })
+		.reverse([FromCapsuleForwardToLedgeForward](){
+			if (input_move.x == 0.0f)
+			{
+				FromCapsuleForwardToLedgeForward();
+				return true;
+			}
+			return false;
+		})
+		.setEndPoint(bracedHangHopUpAnimation)
+		.reverse([](){ return start_hanging_Ledge_Name != state_hanging_Ledge_Name || start_hanging_Ledge_BoxIndex != state_hanging_Ledge_BoxIndex; })
+		.setEndPoint(jumpUpAnimation)
+		.reverse([](){ return state_jump && state_hanging; })
+		.setEndPoint(Jump_To_Hang_With_Leg)
+		.reverse([Graph](){ return Graph->getPrevAnimationName() == "BallisticFly" && !Graph->getAnimationBlend()->isPlaying(); })
+		;
+
+	Graph->createLink(Climb)
+		.setEndPoint(Hanging_Idle_With_Leg)
+		.reverse([](){ return input_move.x > 0.0f; })
 		;
 
 	Graph->createLink(FreehangClimb)
 		.setEndPoint(FallingAndHangOn)
 		.reverse([](){ return fabs(input_move.x) > 0.0f && ready_for_moving_from_falling_and_hang_on; })
-		.setEndPoint(HangingIdleWithOutLeg)
+		.setEndPoint(Hanging_Idle_WithOut_Leg)
 		.reverse([](){ return fabs(input_move.x) > 0.0f; })
 		;
 
 	Graph->createLink(RightShimmy)
 		.setEndPoint(FallingAndHangOn)
 		.reverse([](){ return input_move.y > 0.0f && ready_for_moving_from_falling_and_hang_on; })
-		.setEndPoint(HangingIdleWithOutLeg)
+		.setEndPoint(Hanging_Idle_WithOut_Leg)
 		.reverse([](){ return input_move.y > 0.0f; })
-		.setEndPoint(HangingIdleAnimation)
+		.setEndPoint(Hanging_Idle_With_Leg)
 		.reverse([](){ return input_move.y > 0.0f; })
 		;
 
 	Graph->createLink(LeftShimmy)
 		.setEndPoint(FallingAndHangOn)
 		.reverse([](){ return input_move.y < 0.0f && ready_for_moving_from_falling_and_hang_on; })
-		.setEndPoint(HangingIdleWithOutLeg)
+		.setEndPoint(Hanging_Idle_WithOut_Leg)
 		.reverse([](){ return input_move.y < 0.0f; })
-		.setEndPoint(HangingIdleAnimation)
+		.setEndPoint(Hanging_Idle_With_Leg)
 		.reverse([](){ return input_move.y < 0.0f; })
 		;
 
-	Graph->createLink(JumpToHang)
+	Graph->createLink(Jump_To_Hang_WithOut_Leg)
 		.setEndPoint(BallisticFly)
 		.reverse([](){ return state_hanging && state_BallisticFly_to_HangingIdleWithOutLeg; })
+		;
+
+	Graph->createLink(Jump_To_Hang_With_Leg)
+		.setEndPoint(BallisticFly)
+		.reverse([](){ return state_hanging && state_BallisticFly_to_HangingIdle; })
 		;
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

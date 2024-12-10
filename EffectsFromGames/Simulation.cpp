@@ -87,6 +87,9 @@ float sign(const float& arg);
 
 float CameraBoom = 0.f;
 
+extern float state_CapsulAlfa_WS;
+
+extern float state_HipsAlfa_WS;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void updateOrientation(SimpleMath::Vector3 cameraDirection, SimpleMath::Vector3& _cameraPos, SimpleMath::Vector3& _cameraTarget){
@@ -478,6 +481,19 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 	Simulation::FinishBallisticFly(GWorld.Capsules["eve"].getMatrix(), GWorld.Capsules["eve"].ab, GWorld.Capsules["eve"].r);
 	Simulation::AutoKneeling(FromModelSpaceToWorld);
 	UpdateEveCapsuleHeight(FromModelSpaceToWorld);
+	//// вывести орентацию Hips и капсулы на экран
+	{
+		auto CapsulForwward_WS = GWorld.Capsules["eve"].getMatrix().Right();
+		CapsulForwward_WS.y = 0.f;
+		CapsulForwward_WS.Normalize();
+		state_CapsulAlfa_WS = atan2(CapsulForwward_WS.z, CapsulForwward_WS.x) * 180.f / XM_PI;
+
+		auto HipsForwward_WS = ((*GetSkeletonMatrix(Eve->skelet, 64)) * FromModelSpaceToWorld).Forward();
+		HipsForwward_WS.y = 0.f;
+		HipsForwward_WS.Normalize();
+		state_HipsAlfa_WS = atan2(HipsForwward_WS.z, HipsForwward_WS.x) * 180.f / XM_PI;
+	}
+	////
 	////Eve Combine Animation Transaction 
 	{
 		{

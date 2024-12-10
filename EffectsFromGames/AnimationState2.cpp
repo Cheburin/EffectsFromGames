@@ -55,7 +55,7 @@ IAnimationGraph2::~IAnimationGraph2()
 
 namespace Simulation
 {
-	SimpleMath::Quaternion UpdateCapsuleRotation_GetSubstructedRootRotation(char* _animation1, char* _animation2);
+	SimpleMath::Quaternion UpdateCapsuleRotation_GetSubstructedRootRotation(char* _animation1, char* _animation2, float BlendTime);
 };
 void __BlendSetRoot2Rotation(AnimationBase* blend, SimpleMath::Quaternion RootRotation);
 
@@ -241,7 +241,10 @@ protected:
 
 				double transition_time = 0.5;
 				transition_time = std::string(currentNode->name) == "BallisticFly" ? 0.25 : transition_time;
-				transition_time = std::string(currentNode->name) == "JumpToHang" ? 0.125 : transition_time;
+				
+				transition_time = std::string(currentNode->name) == "Jump_To_Hang_With_Leg" ? 0.125 : transition_time;
+				transition_time = std::string(currentNode->name) == "Jump_To_Hang_WithOut_Leg" ? 0.125 : transition_time;
+				
 				transition_time = std::string(currentNode->name) == "Freehang_Climb" ? 0.025 : transition_time;
 				transition_time = std::string(currentNode->name) == "RightShimmy" ? 0.125 : transition_time;
 				transition_time = std::string(currentNode->name) == "LeftShimmy" ? 0.125 : transition_time;
@@ -292,7 +295,7 @@ protected:
 							return (transition_deltaTranslation ? (float)k : 1.f)*deltaTranslation;
 						}
 					);
-					__BlendSetRoot2Rotation(animationBlend, Simulation::UpdateCapsuleRotation_GetSubstructedRootRotation(currentNode->name, prevNode->name));
+					Simulation::UpdateCapsuleRotation_ApplyTargetRootDeltaRotation(currentNode->name, prevNode->name, transition_time);
 				}
 				else if (bAnimationBlendActivated)
 				{
@@ -316,7 +319,7 @@ protected:
 							return (transition_deltaTranslation ? (float)k : 1.f)*deltaTranslation;
 						}
 					);
-					__BlendSetRoot2Rotation(animationBlend, Simulation::UpdateCapsuleRotation_GetSubstructedRootRotation(currentNode->name, prevNode->name));
+					Simulation::UpdateCapsuleRotation_ApplyTargetRootDeltaRotation(currentNode->name, prevNode->name, transition_time);
 				};
 				//only one travel must be posible so break
 				break;

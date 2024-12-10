@@ -33,13 +33,12 @@ namespace Simulation
 		}
 
 		char* CurrentAnimName = EveAnimationGraph->getAnimationName();
-		float CurrentAnimTime = EveAnimationGraph->getAnimation<Animation>()->getLocTime();
-		bool  CurrentAnimBlending = EveAnimationGraph->getAnimationBlend()->isPlaying();
-
 		const auto ptrHoldWhileBlendPlaying = HoldWhileBlendPlaying.find(CurrentAnimName);
 		if (ptrHoldWhileBlendPlaying != HoldWhileBlendPlaying.end())
 		{
-		    if (CurrentAnimBlending || CurrentAnimTime < ptrHoldWhileBlendPlaying->second)
+			bool  CurrentAnimBlending = EveAnimationGraph->getAnimationBlend()->isPlaying();
+			float CurrentAnimTime = EveAnimationGraph->getAnimation<Animation>()->getLocTime();
+			if (CurrentAnimBlending || CurrentAnimTime < ptrHoldWhileBlendPlaying->second)
 			{
 				auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms[ModelTransformName]) * GWorld.Capsules[CapsuleName].getMatrix();
 				auto Offset = state_hanging_Hand_Location - GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name);

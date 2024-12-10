@@ -4,7 +4,7 @@
 #include "SDKmisc.h"
 
 #include <algorithm>
-
+#include <wchar.h>
 extern float ViewPortWidth;
 
 extern float ViewPortHeight;
@@ -61,7 +61,9 @@ void set_eve_world_matrix(SimpleMath::Matrix & w);
 void set_bone_to_model_palite_transforms(SimpleMath::Matrix * p);
 void set_eve_path_world_matrix(SimpleMath::Matrix w);
 void DrawQuad(ID3D11DeviceContext* pd3dImmediateContext, _In_ IEffect* effect, _In_opt_ std::function<void __cdecl()> setCustomState);
-
+extern SceneState scene_state;
+extern float state_CapsulAlfa_WS;
+extern float state_HipsAlfa_WS;
 //draw helpers
 inline void set_scene_constant_buffer(ID3D11DeviceContext* context){
 	G->scene_constant_buffer->SetData(context, scene_state);
@@ -79,6 +81,12 @@ void RenderText()
 	g_pTxtHelper->SetForegroundColor(D3DXCOLOR(1.0f, 1.0f, 0.0f, 1.0f));
 	g_pTxtHelper->DrawTextLine(DXUTGetFrameStats(true && DXUTIsVsyncEnabled()));
 	g_pTxtHelper->DrawTextLine(DXUTGetDeviceStats());
+
+	g_pTxtHelper->SetInsertionPos(2, scene_state.vFrustumParams.y-20.f);
+	g_pTxtHelper->SetForegroundColor(D3DXCOLOR(0.0f, 0.0f, 1.0f, 1.0f));
+
+	WCHAR buffer[1024]; swprintf(buffer, L"CapsulAlfa == %f HipsAlfa_WS == %f Delta == %f", state_CapsulAlfa_WS, state_HipsAlfa_WS, state_CapsulAlfa_WS - state_HipsAlfa_WS);
+	g_pTxtHelper->DrawTextLine(buffer);
 
 	g_pTxtHelper->End();
 }
@@ -793,7 +801,7 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 		}
 		calculateFramesTransformations(Eve->frame, Matrix::Identity);
 	}
-	if (true)
+	if (false)
 	{
 		auto X = SimpleMath::Matrix::CreateRotationX(-90.f*(3.14f / 180.f));
 		auto Y = SimpleMath::Vector3::TransformNormal(SimpleMath::Vector3(0, 1, 0), X);
@@ -828,11 +836,11 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 	
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//debug poses
-	if (false && EveAnimationGraph->getAnimationName() == "hangingIdle")
+	if (false && EveAnimationGraph->getAnimationName() == "Hanging_Idle_With_Leg")
 	{
 		SimpleMath::Matrix GetJumpFromWallStartTransform(AnimationBase *Anim);
 		SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
-		std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index);
+		std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index, float Time = 0);
 		auto AnimationBlend = EveAnimationGraph->getAnimationBlend();
 		if (AnimationBlend->isPlaying())
 		{

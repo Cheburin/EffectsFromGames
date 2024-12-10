@@ -34,12 +34,9 @@ struct Animation2 : public Animation
 {
 	AnimationRep2* Impl;
 
-	SimpleMath::Quaternion RootRotation;
-
 	Animation2()
 	{
 		Impl = new AnimationRep2();
-		RootRotation = SimpleMath::Quaternion::Identity;
 	}
 
 	~Animation2()
@@ -227,9 +224,10 @@ struct Animation2 : public Animation
 		{
 			Impl->getJointSQT(i, Impl->local_time, CurrentJoints[i]);
 		}
+		RootSampledRotation = CurrentJoints[64][1];
 		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
-			RootRotation,
-			CurrentJoints[64][1]
+			RootDeltaRotation,
+			RootSampledRotation
 		);
 		for (int i = 0; i < 3; i++)
 		{
@@ -294,29 +292,70 @@ struct Animation2 : public Animation
 
 };
 
-void __AnimSetRootRotation(AnimationBase* Anim, SimpleMath::Quaternion RootRotation)
+void __AnimSetRootDeltaRotation(AnimationBase* Anim, SimpleMath::Quaternion RootRotation)
 {
-	auto ret = dynamic_cast<Animation2*>(Anim);
-	if (ret)
-	{
-		ret->RootRotation = RootRotation;
-	}
+	Anim->RootDeltaRotation = RootRotation;
+	Anim->RootSampledRotation = Anim->CurrentJoints[64][1];
+	Anim->CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
+		Anim->RootDeltaRotation,
+		Anim->RootSampledRotation
+	);
 }
 
-std::vector<JointSQT>& __AnimGetLastJoints(AnimationBase* Anim)
+void __AnimResampleCurrentRootRotation(AnimationBase* Anim)
+{
+	Anim->CurrentJoints[64][1] = Anim->RootSampledRotation;
+}
+
+std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time)
 {
 	static std::vector<JointSQT> Joints;
 	if (auto ret = dynamic_cast<Animation2*>(Anim))
 	{
 		Joints.resize(ret->Impl->jointsCount);
-		const auto SampleAtTime = ret->Impl->Rate < 0.f ? 0.f: ret->Impl->local_duration;
+
+		for (int i = 0; i < ret->Impl->jointsCount; i++)
+		{
+			ret->Impl->resetSampleIndex(i, ret->Impl->Rate);
+		}
+
+		auto SampleAtTime = min(ret->Impl->global_duration, max(0.f, Time));
+		SampleAtTime = ret->Impl->Rate * Time;
+		if (SampleAtTime < .0){
+			SampleAtTime = ret->Impl->local_duration + SampleAtTime;
+		}
+
 		for (int i = 0; i < ret->Impl->jointsCount; i++)
 		{
 			ret->Impl->getJointSQT(i, SampleAtTime, Joints[i]);
 		}
+
+		for (int i = 0; i < ret->Impl->jointsCount; i++)
+		{
+			ret->Impl->resetSampleIndex(i, ret->Impl->Rate);
+		}
+
 		return Joints;
 	}
-	return Anim->CurrentJoints;
+	return Anim->__AnimGetJointsByTime(Time);
+}
+
+SimpleMath::Quaternion __AnimSubstructRootDeltaRotation(AnimationBase* Anim)
+{
+	if (auto ret = dynamic_cast<Animation2*>(Anim))
+	{
+		auto V1 = SimpleMath::Vector3(0,0,-1);
+		auto V2 = SimpleMath::Matrix::CreateFromQuaternion(__AnimGetJointsByTime(Anim, 0.f)[64][1]).Forward();
+
+		TDeltaRotation DeltaRotation(V1, V2);
+		auto InverseDelta = DeltaRotation.InverseDelta;
+
+		ret->Impl->TransformJointRotationSamples(64, [InverseDelta](SimpleMath::Vector4 JointRotaion){
+			return SimpleMath::Quaternion::Concatenate(InverseDelta, JointRotaion);
+		});
+
+		return DeltaRotation.Delta;
+	}
 }
 
 SimpleMath::Matrix aiMatrixToSimpleMathMatrix(const aiMatrix4x4& aiMe);

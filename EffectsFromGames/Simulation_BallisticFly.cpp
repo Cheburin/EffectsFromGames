@@ -163,11 +163,11 @@ namespace Simulation
 			}
 			if (state_BallisticFly_to_HangingIdle || state_BallisticFly_to_HangingIdleWithOutLeg)
 			{
-				auto ToModel = (SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * CapsuleSystem).Invert();
-				auto V1 = SimpleMath::Vector3::TransformNormal(GWorld.Capsules["eve"].getMatrix().Right(), ToModel); V1.y = 0; V1.Normalize();
-				auto V2 = SimpleMath::Vector3::TransformNormal(-state_hanging_Ledge_Box.worldBackSide, ToModel); V2.y = 0; V2.Normalize();
-				Simulation::SetInverseTotalRootRotation(SimpleMath::Quaternion::CreateFromAxisAngle(V1.Cross(V2), atan2(V1.Cross(V2).Length(), V1.Dot(V2))));
-				sprintf(DebugBuffer, "FinishBallisticFly Simulation::SetInverseTotalRootRotation Angle %f \n", atan2(V1.Cross(V2).Length(), V1.Dot(V2))); Debug();
+				auto V1 = GWorld.Capsules["eve"].getMatrix().Right();
+				auto V2 = -state_hanging_Ledge_Box.worldBackSide;
+				TDeltaRotation DeltaRotation(V1, V2);
+				Simulation::UpdateCapsuleRotation_SetParams(DeltaRotation.Delta, state_hanging_Ledge_Box.GetPawnOrientation());
+				sprintf(DebugBuffer, "FinishBallisticFly Simulation::UpdateCapsuleRotation_SetParams TargetRootDeltaRotation Angle %f \n", (DeltaRotation.RotationAngle/XM_PI)*180.f); Debug();
 			}
 			sprintf(DebugBuffer, "FinishBallisticFly Check(1)\n"); Debug();
 			////перпендикуляр к уступу(на который прыгаем,уступ пока один) по направлению прышка(пока можем пригать с одного направления)

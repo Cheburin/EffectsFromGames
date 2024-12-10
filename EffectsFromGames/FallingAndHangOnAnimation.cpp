@@ -247,7 +247,6 @@ struct FallingAndHangOnAnimation : public Animation
 
 	float RightDt;
 	float LeftDt;
-	bool LeftHandTargetIsUnlock;
 
 	bool InitAdjustOrientationToEdge;
 
@@ -454,16 +453,31 @@ struct FallingAndHangOnAnimation : public Animation
 	////
 	bool ComputeLeftHandTarget()
 	{
-		auto M = GWorld.Capsules["eve"].getMatrix();
+		//auto M = GWorld.Capsules["eve"].getMatrix();
+		//
+		//auto L = vec4(M.Backward(), -M.Backward().Dot(M.Translation() - 1.0f * M.Backward()));
+		//
+		//auto S = state_hanging_Ledge_Box.origin;
+		//auto V = -state_hanging_Ledge_Box.worldForward;
+		//
+		//auto t = -(L.Dot(vec4(S, 1)) / L.Dot(vec4(V, 0)));
+		//
+		//LeftHandTargetDefined = true;
+		//
+		//LeftHandTarget = S + t*V;
+		
+		LeftHandTargetDefined = true;
 
-		auto L = vec4(M.Backward(), -M.Backward().Dot(M.Translation() - 1.0f * M.Backward()));
+		auto TargetBackSide = state_hanging_Ledge_Box.worldForward; //SimpleMath::Vector3(0, 0, -1);
+		TargetBackSide.Normalize();
 
-		auto S = state_hanging_Ledge_Box.origin;
-		auto V = -state_hanging_Ledge_Box.worldForward;
+		LeftHandJointPosition = RightHandJointPosition + SimpleMath::Vector3::TransformNormal(1.1f * TargetBackSide, modelTransform.Invert());
 
-		auto t = -(L.Dot(vec4(S, 1)) / L.Dot(vec4(V, 0)));
+		LeftHandTarget = SimpleMath::Vector3::Transform(LeftHandJointPosition, modelTransform);
 
-		LeftHandTarget = S + t*V;
+		//FallingAndHangOn_TargetToRightHandDefine = LeftHandTargetDefined;
+
+		//FallingAndHangOn_TargetToRight = LeftHandTarget;
 
 		return true;
 	}
@@ -761,7 +775,7 @@ struct FallingAndHangOnAnimation : public Animation
 
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		LerpPoses(PoseTime / ( PoseIndex == 0 ? 1.0f : PoseMaxTime ));
+		LerpPoses(PoseTime / PoseMaxTime);
 
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//Correction capsule offset
@@ -786,25 +800,22 @@ struct FallingAndHangOnAnimation : public Animation
 			LerpCurrentToSolvedHand(jointsRefsChains.RightArmRightHand, (Impl->prev_local_time - RightDt) / 0.5f, StartRightHandJoints);
 		}
 
-		if ( PoseTime > PoseMaxTime || PoseIndex != 0 )
+		if (RightHandTargetCatched)
 		{
-			if (RightHandTargetCatched)
-			{
-				bool FallingAndHangAdjustOrientationToEdge(bool& Init, float DeltaTime, const SimpleMath::Vector3 & ForwardVector, SimpleMath::Vector3 TargetForwardVector, SimpleMath::Vector3 HandMidLocation, JointSQT& RootJoint);
+			bool FallingAndHangAdjustOrientationToEdge(bool& Init, float DeltaTime, const SimpleMath::Vector3 & ForwardVector, SimpleMath::Vector3 TargetForwardVector, SimpleMath::Vector3 HandMidLocation, JointSQT& RootJoint);
 
-				auto Rotated180Forward = -1.f*GWorld.Capsules["eve"].getMatrix().Right();
+			auto Rotated180Forward = -1.f*GWorld.Capsules["eve"].getMatrix().Right();
 
-				auto TargetForward = -state_hanging_Ledge_Box.worldBackSide; //SimpleMath::Vector3(0, 0, -1);
-				TargetForward.Normalize();
+			auto TargetForward = -state_hanging_Ledge_Box.worldBackSide; //SimpleMath::Vector3(0, 0, -1);
+			TargetForward.Normalize();
 
-				FallingAndHangAdjustOrientationToEdge(InitAdjustOrientationToEdge, elapsedTime, Rotated180Forward, TargetForward, 0.5f*(LeftHandJointPosition + RightHandJointPosition), CurrentJoints[64]);
+			FallingAndHangAdjustOrientationToEdge(InitAdjustOrientationToEdge, elapsedTime, Rotated180Forward, TargetForward, 0.5f*(LeftHandJointPosition + RightHandJointPosition), CurrentJoints[64]);
 				
-				ChainHipsToRightHandFromLocalToModelSpace();
+			ChainHipsToRightHandFromLocalToModelSpace();
 
-				auto Offset = RightHandJointPosition - GetRightHandJointLocation();
+			auto Offset = RightHandJointPosition - GetRightHandJointLocation();
 
-				CurrentJoints[64][2] = CurrentJoints[64][2] + vec4(Offset, 0.f);
-			}
+			CurrentJoints[64][2] = CurrentJoints[64][2] + vec4(Offset, 0.f);
 		}
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//Oscilation
@@ -847,7 +858,7 @@ struct FallingAndHangOnAnimation : public Animation
 
 		if (!RightHandTargetDefined)
 		{
-			if (PoseIndex == 0 && (PoseTime / PoseMaxTime) > 0.5f)
+			if ((PoseTime / PoseMaxTime) > 0.5f)
 			{
 				SaveRightHandJoint();
 
@@ -881,6 +892,8 @@ struct FallingAndHangOnAnimation : public Animation
 				sprintf(DebugBuffer, "RotationAxis %f %f %f\n", state_hanging_Ledge_Box.worldForward.x, state_hanging_Ledge_Box.worldForward.y, state_hanging_Ledge_Box.worldForward.z); Debug();
 				RotationAxis = SimpleMath::Vector3::TransformNormal(-state_hanging_Ledge_Box.worldForward, modelTransform.Invert());
 				RotationAxis.Normalize();
+
+				PrevRootRotation = CurrentJoints[64][1];
 			}
 
 			PrevIntoTargetBox = NextIntoTargetBox;
@@ -888,19 +901,11 @@ struct FallingAndHangOnAnimation : public Animation
 		
 		if (!LeftHandTargetDefined)
 		{
-			if (RightHandTargetCatched && LeftHandTargetIsUnlock)
+			if (RightHandTargetCatched && PoseIndex > 0 && (PoseTime / PoseMaxTime) > 0.5f)
 			{
-				LeftHandTargetIsUnlock = false;
-
-				ComputeLeftHandTarget();
-
 				SaveLeftHandJoint();
 
-				LeftHandJointPosition = SimpleMath::Vector3::Transform(LeftHandTarget, modelTransform.Invert());
-			}
-			if(PoseIndex == 1 && (PoseTime / PoseMaxTime) > 0.5f)
-			{
-				LeftHandTargetDefined = true;
+				ComputeLeftHandTarget();
 
 				LeftDt = Impl->local_time + elapsedTime;
 			}
@@ -908,7 +913,7 @@ struct FallingAndHangOnAnimation : public Animation
 
 		if (!PendulumActivated)
 		{
-			if (RightHandTargetCatched)//PoseIndex == 2 && PoseTime > PoseMaxTime)
+			if (RightHandTargetCatched)
 			{
 				PendulumActivated = true;
 
@@ -934,120 +939,31 @@ struct FallingAndHangOnAnimation : public Animation
 			}
 		}
 
-		/////just for debug
-		//{
-			//FallingAndHangOn_TargetToRightHandDefine = LeftHandTargetDefined;
-
-			//FallingAndHangOn_TargetToRight = LeftHandTarget;
-		//}
-
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		//Compute Extra Delta
-		DeltaTranslation += SimpleMath::Vector3::TransformNormal(vec4ToVec3(CurrentJoints[64][2] - PrevRootLocation), modelTransform);
-
-		PrevRootLocation = CurrentJoints[64][2];
-
-		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		//Compute Extra Rotation
+		//Compute Delta Translation
 		{
-			struct Quat
-			{
-				float yaw0;
-				float pitch0;
-				float roll0;
+			const auto Delta = SimpleMath::Vector3::TransformNormal(vec4ToVec3(CurrentJoints[64][2] - PrevRootLocation), modelTransform) + getDeltaTranslation();
 
-				float yaw1;
-				float pitch1;
-				float roll1;
+			PrevRootLocation = CurrentJoints[64][2];
 
-				SimpleMath::Quaternion RootRotation;
-				SimpleMath::Quaternion DeltaRotation;
+			DeltaTranslation = Delta;
 
-				void ExtractPitchYawRollFromXMMatrix(float* flt_p_PitchOut, float* flt_p_YawOut, float* flt_p_RollOut, const DirectX::XMMATRIX* XMMatrix_p_Rotation)
-				{
-					//First Attempt  https://stackoverflow.com/questions/5782658/extracting-yaw-from-a-quaternion (dont work in my case)
-					//roll0 = atan2(2.0 * (q.z * q.y + q.w * q.x), 1.0 - 2.0 * (q.x * q.x + q.y * q.y));
-					//pitch0 = asin(2.0 * (q.y * q.w - q.z * q.x));
-					//yaw0 = atan2(2.0 * (q.z * q.w + q.x * q.y), -1.0 + 2.0 * (q.w * q.w + q.x * q.x));
-
-					//Second Attempt
-					DirectX::XMFLOAT4X4 XMFLOAT4X4_Values;
-					DirectX::XMStoreFloat4x4(&XMFLOAT4X4_Values, DirectX::XMMatrixTranspose(*XMMatrix_p_Rotation));
-					*flt_p_PitchOut = (float)asin(-XMFLOAT4X4_Values._23);
-					*flt_p_YawOut = (float)atan2(XMFLOAT4X4_Values._13, XMFLOAT4X4_Values._33);
-					*flt_p_RollOut = (float)atan2(XMFLOAT4X4_Values._21, XMFLOAT4X4_Values._22);
-				}
-
-				void decompose0(SimpleMath::Quaternion q)
-				{
-					DirectX::XMMATRIX r = SimpleMath::Matrix::CreateFromQuaternion(q);
-					ExtractPitchYawRollFromXMMatrix(&pitch0, &yaw0, &roll0, &r);
-				}
-
-				void decompose1(SimpleMath::Quaternion q)
-				{
-					DirectX::XMMATRIX r = SimpleMath::Matrix::CreateFromQuaternion(q);
-					ExtractPitchYawRollFromXMMatrix(&pitch1, &yaw1, &roll1, &r);
-				}
-
-				void decompose(float YawBase, SimpleMath::Quaternion Prev, SimpleMath::Quaternion Cur)
-				{
-					decompose0(Prev);
-					decompose1(Cur);
-
-					//requires investigation in the subsequent study of quaternions
-					//auto test = SimpleMath::Quaternion::CreateFromYawPitchRoll(yaw1, pitch1, roll1);
-					//if (fabs(test.w - Cur.w) > 0.000001f || fabs(test.z - Cur.z) > 0.000001f || fabs(test.y - Cur.y) > 0.000001f || fabs(test.x - Cur.x) > 0.000001f)
-					//{
-					//	return;
-					//}
-					///
-
-					DeltaRotation = SimpleMath::Quaternion::CreateFromYawPitchRoll((yaw1 - yaw0), 0, 0);
-
-					//this is true (like a matrix)
-					//RootRotation = inv(SimpleMath::Quaternion::Concatenate(
-					//	SimpleMath::Quaternion::Concatenate(
-					//		inv(SimpleMath::Quaternion::CreateFromYawPitchRoll(0, 0, roll1)),
-					//		inv(SimpleMath::Quaternion::CreateFromYawPitchRoll(0, pitch1, 0))
-					//	),
-					//	inv(SimpleMath::Quaternion::CreateFromYawPitchRoll(yaw1, 0, 0))
-					//));
-
-					RootRotation = SimpleMath::Quaternion::CreateFromYawPitchRoll(YawBase, pitch1, roll1);
-
-					//sprintf(DebugBuffer, "(1)Quat::yaw pitch roll %f %f %f \n", yaw0*(180.f / PI), pitch0*(180.f / PI), roll0*(180.f / PI)); Debug();
-					//sprintf(DebugBuffer, "(2)Quat::yaw pitch roll %f %f %f \n", yaw1*(180.f / PI), pitch1*(180.f / PI), roll1*(180.f / PI)); Debug();
-				}
-			};
-
-			static float YawBase = 0.0f;
-
-			if (PoseTime > PoseMaxTime || PoseIndex != 0)
-			{
-				Quat Q;
-
-				Q.decompose(YawBase, PrevRootRotation, CurrentJoints[64][1]);
-
-				PrevRootRotation = CurrentJoints[64][1];
-
-				DeltaRotation = Q.DeltaRotation;
-
-				CurrentJoints[64][1] = Q.RootRotation;
-			}
-			else
-			{
-				PrevRootRotation = CurrentJoints[64][1];
-			}
+			CurrentJoints[64][2] = (*Poses[0])[64][2];
 		}
-
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		//Reset Hips Translation Compute Delta Translation
+		//Compute Delta Rotation
+		if (RightHandTargetCatched)
+		{
+			Quat Q;
 
-		CurrentJoints[64][2] = (*Poses[0])[64][2];
+			Q.decompose(0.0f, PrevRootRotation, CurrentJoints[64][1]);
 
-		DeltaTranslation += getDeltaTranslation();
+			PrevRootRotation = CurrentJoints[64][1];
 
+			DeltaRotation = Q.DeltaRotation;
+
+			CurrentJoints[64][1] = Q.RootRotation;
+		}
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//Advanse Animation Time
 
@@ -1162,8 +1078,6 @@ struct FallingAndHangOnAnimation : public Animation
 		SetupBlendPoses();
 
 		RightHandTargetCatched = RightHandTargetDefined = false;
-
-		LeftHandTargetIsUnlock = true;
 
 		PrevIntoTargetBox = false;
 

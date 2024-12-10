@@ -26,7 +26,8 @@
 #include "AppBuffers.h"
 
 using namespace DirectX;
-
+extern char DebugBuffer[1024];
+void Debug();
 struct EffectShaderFileDef{
 	WCHAR * name;
 	WCHAR * entry_point;
@@ -230,11 +231,17 @@ struct AnimationBase
 
 	virtual void reset() = 0;
 
+	SimpleMath::Quaternion RootDeltaRotation;
+
+	SimpleMath::Quaternion RootSampledRotation;
+
 	std::vector<JointSQT> CurrentJoints;
 
 	std::vector<SimpleMath::Vector3> CurrentMetaChannels;
 
 	virtual ~AnimationBase();
+
+	virtual std::vector<JointSQT>& __AnimGetJointsByTime(float Time){ return CurrentJoints; };
 };
 
 inline void fillSkeletonTransformFromJoint(AnimationBase* animation, CharacterSkelet *skelet)
@@ -649,6 +656,14 @@ struct Box : CollisionFrame{
 					return true;
 		return false;
 	};
+	SimpleMath::Quaternion GetPawnOrientation()
+	{
+		auto X = -worldBackSide;
+		X.Normalize();
+		auto Z = worldForward;
+		Z.Normalize();
+		return SimpleMath::Quaternion::CreateFromRotationMatrix(SimpleMath::Matrix(X, SimpleMath::Vector3(0, 1, 0), Z));
+	}
 };
 
 struct Mesh : CollisionFrame{
@@ -731,7 +746,8 @@ namespace Simulation
 	void Collision(Capsule& Capsule, SimpleMath::Vector3 DeltaLocation, SimpleMath::Quaternion DeltaRotation);
 	void CharacterLerpRotation(float simulationTime, char* CapsuleName, char* ModelTransformName);
 	void UpdateCapsuleRotation(Capsule& capsule);
-	void SetInverseTotalRootRotation(const SimpleMath::Quaternion& Rotation);
+	void UpdateCapsuleRotation_ApplyTargetRootDeltaRotation(char* _animation1, char* _animation2, float BlendTime);
+	void UpdateCapsuleRotation_SetParams(const SimpleMath::Quaternion TheTargetRootDeltaRotation, const SimpleMath::Quaternion TheTargetOrientation);
 };
 
 const float PI = 3.141592653589793238462643383279;
@@ -868,5 +884,53 @@ struct Quat
 		RootRotation = SimpleMath::Quaternion::CreateFromYawPitchRoll(YawBase, pitch1, roll1);
 
 		return *this;
+	}
+};
+
+struct TDeltaRotation
+{
+	bool IsValid;
+	float RotationAngle;
+	SimpleMath::Quaternion Rotation;
+	SimpleMath::Vector3 RotationAxis;
+
+	SimpleMath::Quaternion Delta;
+	SimpleMath::Quaternion InverseDelta;
+	TDeltaRotation(SimpleMath::Vector3 V1, SimpleMath::Vector3 V2)
+	{
+		V1.y = 0; V1.Normalize();
+		V2.y = 0; V2.Normalize();
+		RotationAxis = V1.Cross(V2);
+		RotationAngle = atan2(RotationAxis.Length(), V1.Dot(V2));
+		IsValid = !XMVector3Equal(RotationAxis, XMVectorZero());
+		InverseDelta = Delta = SimpleMath::Quaternion::Identity;
+		if (IsValid)
+		{
+			Delta = SimpleMath::Quaternion::CreateFromAxisAngle(RotationAxis, RotationAngle);
+			InverseDelta = SimpleMath::Quaternion::CreateFromAxisAngle(RotationAxis, -RotationAngle);
+		}
+	}
+	TDeltaRotation& Log(std::string msg)
+	{
+		if (IsValid)
+		{
+			msg += std::string(" TDeltaRotation RotationAngle == %f\n");
+			sprintf(DebugBuffer, msg.data(), (RotationAngle / XM_PI)*180.f); Debug();
+		}
+		return *this;
+	}
+	void Add(DirectX::XMFLOAT4& Rotation)
+	{
+		if (IsValid)
+		{
+			Rotation = SimpleMath::Quaternion::Concatenate(Delta, Rotation);
+		}
+	}
+	void Substruct(DirectX::XMFLOAT4& Rotation)
+	{
+		if (IsValid)
+		{
+			Rotation = SimpleMath::Quaternion::Concatenate(InverseDelta, Rotation);
+		}
 	}
 };
