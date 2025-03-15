@@ -185,6 +185,12 @@
     <ClCompile Include="Simulation_UpdateCapsuleRotation.cpp">
       <Filter>CallBack</Filter>
     </ClCompile>
+    <ClCompile Include="EdgeHorizontalJumpAnimation.cpp">
+      <Filter>CallBack</Filter>
+    </ClCompile>
+    <ClCompile Include="Simulation_HoldToe.cpp">
+      <Filter>CallBack</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h">

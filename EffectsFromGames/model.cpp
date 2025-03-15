@@ -17,6 +17,9 @@
 #include <assimp/scene.h>           // Output data structure
 #include <assimp/postprocess.h>     // Post processing flags
 
+extern World GWorld;
+#undef min // use __min instead
+#undef max // use __max instead
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 SimpleMath::Matrix aiMatrixToSimpleMathMatrix(const aiMatrix4x4& aiMe){
 	XMFLOAT4X4 output;
@@ -246,11 +249,11 @@ void collectFrames(ID3D11Device* device, CharacterSkelet * characterSkelet,  con
 			if (!Mesh->mNormals)
 				throw "";
 
-			if (!Mesh->mTangents)
-				throw "";
+			//if (!Mesh->mTangents)
+			//	throw "";
 
-			if (!Mesh->mBitangents)
-				throw "";
+			//if (!Mesh->mBitangents)
+			//	throw "";
 
 			if (characterSkelet && !Mesh->mNumBones)
 				throw "";
@@ -312,8 +315,8 @@ void collectFrames(ID3D11Device* device, CharacterSkelet * characterSkelet,  con
 
 					auto & MeshVertex = Mesh->mVertices[k];
 					auto & MeshUV = Mesh->mTextureCoords[0][k];
-					auto & MeshTangent = Mesh->mTangents[k];
-					auto & MeshBitangent = Mesh->mBitangents[k];
+					auto & MeshTangent = Mesh->mTangents ? Mesh->mTangents[k] : aiVector3D();
+					auto & MeshBitangent = Mesh->mBitangents ? Mesh->mBitangents[k] : aiVector3D();
 					auto & MeshNormal = Mesh->mNormals[k];
 
 					float _tangent[] = { MeshTangent.x, MeshTangent.y, MeshTangent.z, .0f };
@@ -542,6 +545,21 @@ void _getChain(char * JointName, TransformationFrame * Frame, std::map<std::stri
 	}
 }
 
+void _getChain(TransformationFrame * Frame, std::map<std::string, unsigned int> & FramesNamesIndex, std::vector<int> & indexes)
+{
+	indexes.push_back(FramesNamesIndex[std::string(Frame->Name)]);
+
+	if (Frame->FirstChild)
+	{
+		_getChain(Frame->FirstChild, FramesNamesIndex, indexes);
+	}
+}
+
+void GetChain(Character * character, char * JointName0, std::vector<int>& indexes)
+{
+	_getChain(findTransformationFrameByName(character->frame, JointName0), character->skelet->FramesNamesIndex, indexes);
+}
+
 void GetChain(Character * character, char * JointName0, char * JointName1, std::vector<int>& indexes)
 {
 	_getChain(JointName0, findTransformationFrameByName(character->frame, JointName1), character->skelet->FramesNamesIndex, indexes);
@@ -609,9 +627,85 @@ void _getAllTriangles(TransformationFrame * Frame, std::vector<SimpleMath::Vecto
 	}
 }
 
+void _getAllBoxes(TransformationFrame * Frame, std::vector< std::string > & result, const SimpleMath::Matrix & M, const std::string& SpaceName, SimpleMath::Vector3& BoundBoxMin, SimpleMath::Vector3& BoundBoxMax)
+{
+	if (Frame->FirstChild)
+		_getAllBoxes(Frame->FirstChild, result, M, SpaceName, BoundBoxMin, BoundBoxMax);
+	if (Frame->NextSibling)
+		_getAllBoxes(Frame->NextSibling, result, M, SpaceName, BoundBoxMin, BoundBoxMax);
+
+	SimpleMath::Vector3 s, t;
+	SimpleMath::Quaternion o;
+	auto FM = Frame->Transformation * M;
+	auto bDecompose = SimpleMath::Matrix(FM).Decompose(s, o, t);
+
+	for (int i = 0; i < Frame->Meshes.size(); i++)
+	{
+		SimpleMath::Vector3 HalfSize = SimpleMath::Vector3(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+
+		for (int j = 0; j < Frame->MeshesIndices[i].size(); j++)
+		{
+			auto p = Frame->MeshesVertex[i][Frame->MeshesIndices[i][j]].position;
+			HalfSize.x = __max(HalfSize.x, p.x);
+			HalfSize.y = __max(HalfSize.y, p.y);
+			HalfSize.z = __max(HalfSize.z, p.z);
+		}
+
+		if (Frame->Name == "Cube_003") break;
+
+		std::string n = SpaceName + "_" + Frame->Name;
+
+		Box b;
+
+		b.origin = t;
+		b.overlap = true;
+		b.orientation = o;
+		b.size = 2.0f*s*HalfSize;
+		b.evalWorldSize();
+
+		sprintf(DebugBuffer, "_getAllBoxes=(%f, %f, %f)(%f, %f, %f)(D=%f)(D=%f)(b=%d)\n", b.worldBackSide.x, b.worldBackSide.y, b.worldBackSide.z, b.size.x, b.size.y, b.size.z, FM.Determinant(), Frame->Transformation.Determinant(), bDecompose); Debug();
+
+		SimpleMath::Matrix worldTransform = SimpleMath::Matrix::CreateTranslation(-0.5, -0.5, -0.5) * SimpleMath::Matrix::CreateScale(b.size) * b.getMatrix();
+
+		//compute all ledges bound box
+		{
+			SimpleMath::Vector3 BoxCorners[2] = { SimpleMath::Vector3::Transform(SimpleMath::Vector3(0, 0, 0), worldTransform), SimpleMath::Vector3::Transform(SimpleMath::Vector3(1, 1, 1), worldTransform) };
+			for (int i = 0; i < 2; i++)
+			{
+				BoundBoxMin.x = __min(BoundBoxMin.x, BoxCorners[i].x);
+				BoundBoxMin.y = __min(BoundBoxMin.y, BoxCorners[i].y);
+				BoundBoxMin.z = __min(BoundBoxMin.z, BoxCorners[i].z);
+				BoundBoxMax.x = __max(BoundBoxMax.x, BoxCorners[i].x);
+				BoundBoxMax.y = __max(BoundBoxMax.y, BoxCorners[i].y);
+				BoundBoxMax.z = __max(BoundBoxMax.z, BoxCorners[i].z);
+			}
+		}
+
+		GWorld.Ledges[n] = Ledge::Make(b);
+
+		result.push_back(n);
+
+		//assume that frame have one mesh
+
+		break;
+	}
+}
+
 void StaticObject::getAllTriangles(std::vector<SimpleMath::Vector3> &vertex, const SimpleMath::Matrix & M)
 {
 	_getAllTriangles(frame, vertex, M);
+}
+
+std::vector< std::string > StaticObject::EmitLedges(const std::string& SpaceName, SimpleMath::Vector3& BoundBoxMin, SimpleMath::Vector3& BoundBoxMax)
+{
+	std::vector< std::string > Result;
+
+	BoundBoxMin = SimpleMath::Vector3(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+	BoundBoxMax = SimpleMath::Vector3(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+
+	_getAllBoxes(frame, Result, SimpleMath::Matrix::Identity, SpaceName, BoundBoxMin, BoundBoxMax);
+
+	return Result;
 }
 
 StaticObject* loadStaticObject(ID3D11Device* device, char * file_name)
@@ -619,6 +713,24 @@ StaticObject* loadStaticObject(ID3D11Device* device, char * file_name)
 	Assimp::Importer importer;
 
 	const aiScene* scene = importer.ReadFile(file_name, aiProcess_ConvertToLeftHanded | aiProcess_CalcTangentSpace);// | aiProcess_Triangulate | aiProcess_FlipUVs );// | aiProcess_Triangulate);// | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_CalcTangentSpace);// | aiProcess_MakeLeftHanded);
+
+	auto RootFrame = new TransformationFrame();
+	RootFrame->Transformation = aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation);
+	RootFrame->Name = scene->mRootNode->mName.C_Str();
+
+	collectFrames(device, nullptr, scene, 0, scene->mRootNode, RootFrame);
+
+	auto staticObject = new StaticObject();
+	staticObject->frame = RootFrame;
+
+	return staticObject;
+}
+
+StaticObject* loadStaticObject2(ID3D11Device* device, char * file_name)
+{
+	Assimp::Importer importer;
+
+	const aiScene* scene = importer.ReadFile(file_name, aiProcess_ConvertToLeftHanded);// | aiProcess_Triangulate | aiProcess_FlipUVs );// | aiProcess_Triangulate);// | aiProcess_FlipUVs | aiProcess_GenNormals | aiProcess_CalcTangentSpace);// | aiProcess_MakeLeftHanded);
 
 	auto RootFrame = new TransformationFrame();
 	RootFrame->Transformation = aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation);
@@ -689,6 +801,10 @@ extern char* state_hanging_Hand_Name;
 extern bool state_BallisticFly_to_HangingIdle;
 extern bool state_BallisticFly_to_HangingIdleWithOutLeg;
 
+extern SimpleMath::Vector3 state_hanging_Toe_Location;
+extern bool state_hanging_Toe_activated;
+extern char* state_hanging_Toe_Name;
+
 struct ConsumeInputJump
 {
 	bool operator()(){
@@ -706,6 +822,8 @@ Animation * createShimmyAnimation(bool MoveRight, std::map<std::string, unsigned
 Animation * CreateBallisticFlyAnimation(std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
 
 Animation * CreateJumpFromWallAnimation(std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
+
+Animation * CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, SimpleMath::Quaternion PoseYaw, std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
 
 extern char DebugBuffer[1024];
 extern World GWorld;
@@ -727,6 +845,23 @@ Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsi
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 SimpleMath::Quaternion __AnimSubstructRootDeltaRotation(AnimationBase* Anim);
 
+AnimationBase* DebugAnimation;
+
+Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
+Animation* loadAnimationFromBlender(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
+void AnimationSetJointT(Animation * anim, int JointNum, SimpleMath::Vector3 Translation);
+int IsShimmyAnimationEdgeBreakOff(AnimationBase *animation);
+void FixAnimJointsOrientation(Animation* Anim, Animation* RefAnim);
+void rotateHips(Animation *, SimpleMath::Quaternion);
+
+AnimationBase** PackGroup(AnimationBase * a1, AnimationBase * a2)
+{
+	static int CicleIndex = 0;
+	static AnimationBase* ar[10][10];
+	ar[CicleIndex % 10][0] = a1; ar[CicleIndex % 10][1] = a2;
+	return &ar[CicleIndex++ % 10][0];
+};
+
 void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet, TransformationFrame * frame)
 {
 	auto EveInvertModelTransform = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]).Invert();
@@ -735,6 +870,10 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 
 	auto getSkeletMatrix = [characterSkelet](unsigned int index){return characterSkelet->Transformation[index]; };
 	auto calculateFramesTrans = [frame](){calculateFramesTransformations(frame, SimpleMath::Matrix::Identity); };
+
+	auto TPose = loadAnimationFromBlender("Media\\Poses\\TPose.dae", characterSkelet->FramesNamesIndex);
+	extractAnimationMeta(TPose, false, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	Graph->registerAnimation("TPose", TPose);
 
 	auto walkingAnimation = loadAnimation("Media\\Animations\\Walking.dae", characterSkelet->FramesNamesIndex);
 	walkingAnimation->setRate(60 * .01 + 1.0 / 2.0);
@@ -876,6 +1015,21 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	Jump_To_Hang_With_Leg->CurrentJoints = __AnimGetJointsByTime(Hanging_Idle_With_Leg, 0.f);
 	Jump_To_Hang_With_Leg->CurrentMetaChannels = Hanging_Idle_With_Leg->CurrentMetaChannels;
 	Graph->registerAnimation("Jump_To_Hang_With_Leg", Jump_To_Hang_With_Leg);
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	auto ActionPose_Release_And_Go_Down = loadAnimationFromBlender("Media\\Animations\\ActionPose_Release_And_Go_Down.dae", characterSkelet->FramesNamesIndex);
+	AnimationSetJointT(ActionPose_Release_And_Go_Down, 64, SimpleMath::Vector3(0, 80, 0));
+	extractAnimationMeta(ActionPose_Release_And_Go_Down, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	Graph->registerAnimation("ActionPose_Release_And_Go_Down", ActionPose_Release_And_Go_Down);
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	auto Climb_Fold_Hands = loadAnimationFromBlender("Media\\Animations\\Edge\\Climb_Fold_Hands.dae", characterSkelet->FramesNamesIndex);
+	AnimationSetJointT(Climb_Fold_Hands, 64, SimpleMath::Vector3(0, 24, 0));
+	extractAnimationMeta(Climb_Fold_Hands, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	Graph->registerAnimation("Climb_Fold_Hands", Climb_Fold_Hands);
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	auto Left_Edge_Horizontal_Jump = CreateEdgeHorizontalJumpAnimation(true, Climb_Look_Idle_L, Climb_Look_Idle_L_Delta_Rotation, characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	Graph->registerAnimation("Left_Edge_Horizontal_Jump", Left_Edge_Horizontal_Jump);
+	auto Right_Edge_Horizontal_Jump = CreateEdgeHorizontalJumpAnimation(false, Climb_Look_Idle_R, Climb_Look_Idle_R_Delta_Rotation, characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	Graph->registerAnimation("Right_Edge_Horizontal_Jump", Right_Edge_Horizontal_Jump);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	Climb_Look_Idle_R->subscribe("onPlayingChanged", [RightShimmy](bool state){
 		if (state)
@@ -1037,7 +1191,18 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	Kneeling->subscribe("onPlayingChanged", [](bool state){
 		state_idle = state;
 	});
+	ActionPose_Release_And_Go_Down->subscribe("onPlayingChanged", [](bool state){
+		if (state)
+		{
+			auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
 
+			state_falling = true;
+			state_hanging = false;
+			start_hanging_Ledge_Name = state_hanging_Ledge_Name;
+			start_hanging_Ledge_BoxIndex = state_hanging_Ledge_BoxIndex;
+			state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName);
+		}
+	});
 	//Graph->createLink(DebugAnimation)
 	//	.setEndPoint(idleAnimation)
 	//	.reverse([](){ return state_play_debug_animation; })
@@ -1225,7 +1390,110 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		.setEndPoint(Jump_To_Hang_WithOut_Leg)
 		.reverse([](){ return !Jump_To_Hang_WithOut_Leg_Playing; })
 		;
-	
+
+	Graph->createLinks(2, PackGroup(Left_Edge_Horizontal_Jump, Right_Edge_Horizontal_Jump))
+		.setEndPoint(PackGroup(LeftShimmy, RightShimmy))
+		.reverse([Graph](){
+			bool GetEdgeHorizontalJumpAnimation_NextPose(IAnimationGraph2 * Graph, Animation* Anim, bool bStarting);
+
+			if (consumeInputJump())
+			{
+				//отладка
+				//{
+					extern bool simulation_state_manual_control;
+					simulation_state_manual_control = true;
+				//}
+
+				state_jump = true;
+				state_hanging_Toe_activated = true;
+				state_hanging_Toe_Name = Graph->GetCurrentConditionNodeName() == "Left_Edge_Horizontal_Jump" ? "RightToe_End" : "LeftToe_End";
+				//GetHandLocation операется на фреймы скелета, но ниже мы крутим скелет, следовательно локэйшин нужно взять раньше
+				state_hanging_Toe_Location = GetHandLocation(SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix(), state_hanging_Toe_Name);
+
+				start_hanging_Ledge_Name = state_hanging_Ledge_Name;
+				start_hanging_Ledge_BoxIndex = state_hanging_Ledge_BoxIndex;
+
+				return GetEdgeHorizontalJumpAnimation_NextPose(Graph, (Animation*)(Graph->GetCurrentConditionNodeAnimation()), true);
+			}
+			else
+			{
+				return false;
+			}
+		})
+		;
+
+	Graph->createLinks(2, PackGroup(Left_Edge_Horizontal_Jump, Right_Edge_Horizontal_Jump))
+		.setEndPoint(PackGroup(Left_Edge_Horizontal_Jump, Right_Edge_Horizontal_Jump))
+		.reverse([Graph](){
+			bool GetEdgeHorizontalJumpAnimation_NextPose(IAnimationGraph2 * Graph, Animation* Anim, bool bStarting);
+
+			return GetEdgeHorizontalJumpAnimation_NextPose(Graph, (Animation*)(Graph->GetCurrentConditionNodeAnimation()), false);
+		})
+		;
+
+	Graph->createLinks(2, PackGroup(Jump_To_Hang_With_Leg, Jump_To_Hang_With_Leg))
+		.setEndPoint(PackGroup(Left_Edge_Horizontal_Jump, Right_Edge_Horizontal_Jump))
+		.reverse([FromCapsuleForwardToLedgeForward](){
+			auto bRet = start_hanging_Ledge_Name != state_hanging_Ledge_Name || start_hanging_Ledge_BoxIndex != state_hanging_Ledge_BoxIndex;
+			if (state_hanging && bRet)
+			{
+				auto Temp = GetHandLocation(SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix(), "RightHand");
+				sprintf(DebugBuffer, "Left_Edge_Horizontal_Jump -> Jump_To_Hang_With_Leg %f %f %f\n", Temp.x, Temp.y, Temp.z); Debug(); 
+				//EdgeHorizontalJumpAnimation::resetPosesStates -111.211891 17.973904 -34.255638 -111.211891 17.973906 -34.255638
+				//Left_Edge_Horizontal_Jump -> Jump_To_Hang_With_Leg -111.211899 17.974941 -39.226669
+
+				FromCapsuleForwardToLedgeForward();
+				state_jump = false;
+				return true;
+			}
+			return false; 
+		})
+		;
+
+	Graph->createLink(Hanging_Idle_With_Leg)
+		.setEndPoint(Jump_To_Hang_With_Leg)
+		.reverse([Graph](){ 
+			auto PrevAnimName = Graph->getPrevAnimationName();
+			return (PrevAnimName == "Left_Edge_Horizontal_Jump" || PrevAnimName == "Right_Edge_Horizontal_Jump") && !Graph->getAnimationBlend()->isPlaying();
+		})
+		;
+
+	Graph->createLink(Climb_Fold_Hands)
+		.setEndPoint(RightShimmy)
+		.reverse([RightShimmy](){ 
+			bool bRet = fabs(input_move.y) == 0.0f && IsShimmyAnimationEdgeBreakOff(RightShimmy); 
+			if (bRet){
+				auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+				state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName);
+			}
+			return bRet;
+		})
+		.setEndPoint(LeftShimmy)
+		.reverse([LeftShimmy](){
+			bool bRet = fabs(input_move.y) == 0.0f && IsShimmyAnimationEdgeBreakOff(LeftShimmy);
+			if (bRet){
+				auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+				state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = RightHandName);
+			}
+			return bRet;
+		})
+		;
+
+	Graph->createLink(Hanging_Idle_With_Leg)
+		.setEndPoint(Climb_Fold_Hands)
+		.reverse([Graph](){
+			bool bRet = fabs(input_move.y) == 0.0f && !Graph->getAnimationBlend()->isPlaying();
+			if (bRet){
+				auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+				if(state_hanging_Hand_Name == RightHandName)
+					state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName);
+				else
+					state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = RightHandName);
+			}
+			return bRet;
+		})
+		;
+
 	Graph->createLink(Hanging_Idle_With_Leg)
 		.setEndPoint(RightShimmy)
 		.reverse([RightShimmy](){ return fabs(input_move.y) == 0.0f && GetShimmyAnimationKind(RightShimmy) == 2; })
@@ -1262,6 +1530,20 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		.reverse([](){ return state_jump && state_hanging; })
 		.setEndPoint(Jump_To_Hang_With_Leg)
 		.reverse([Graph](){ return Graph->getPrevAnimationName() == "BallisticFly" && !Graph->getAnimationBlend()->isPlaying(); })
+		.setEndPoint(ActionPose_Release_And_Go_Down)
+		.reverse([](){ 
+			auto bRet = start_hanging_Ledge_Name != state_hanging_Ledge_Name || start_hanging_Ledge_BoxIndex != state_hanging_Ledge_BoxIndex; 
+			if (bRet)
+			{
+				state_falling = false;
+			}
+			return bRet;
+		})
+		;
+
+	Graph->createLink(ActionPose_Release_And_Go_Down)
+		.setEndPoint(Hanging_Idle_With_Leg)
+		.reverse([Graph](){ return state_kneeling; })
 		;
 
 	Graph->createLink(Climb)
@@ -1306,4 +1588,18 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	Graph->start(idleAnimation);
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	auto _DebugAnimation = loadAnimationFromBlender("Media\\Animations\\Edge\\Edge_Right_Horizontal_Jump_Pose_1.dae", characterSkelet->FramesNamesIndex);
+
+	//AnimationSetJointT(_DebugAnimation, 64, SimpleMath::Vector3(0,80,0));
+	//rotateHips(_DebugAnimation, SimpleMath::Quaternion::CreateFromRotationMatrix(SimpleMath::Matrix::CreateRotationY(.0f*PI / 180.0)));
+	FixAnimJointsOrientation(_DebugAnimation, TPose);
+
+	extractAnimationMeta(_DebugAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+
+	_DebugAnimation->reset();
+
+	DebugAnimation = _DebugAnimation;
 }

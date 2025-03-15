@@ -79,7 +79,8 @@ namespace Simulation
 		state_hanging = GrabLedgesCount != 0;
 
 		//sprintf(DebugBuffer, "Simulation::GrabLedgeByHand Release Ledge %d [%f %f %f] %s %s %d state_falling %d\n",
-		sprintf(DebugBuffer, "Simulation::GrabLedgeByHand Release Ledge state_hanging(%d) Ledge_Name(%s) Ledge_BoxIndex(%d) state_falling(%d)\n",
+		sprintf(DebugBuffer, "Simulation::GrabLedgeByHand Release Ledge Hand_Name(%s) state_hanging(%d) Ledge_Name(%s) Ledge_BoxIndex(%d) state_falling(%d)\n",
+			state_hanging_Hand_Name,
 			state_hanging,
 			//FromModelSpaceToWorld._41, FromModelSpaceToWorld._42, FromModelSpaceToWorld._43, 
 			//state_hanging_Hand_Name, 
@@ -110,7 +111,7 @@ namespace Simulation
 				}
 			}
 		//}
-		else if ( state_jump || state_ballistic_fly_to_target )
+		else if (state_falling || state_jump || state_ballistic_fly_to_target)
 		{
 			for (auto Ledge_Iter = GWorld.Ledges.begin(); Ledge_Iter != GWorld.Ledges.end(); Ledge_Iter++){
 				const auto & Ledge_Boxes = Ledge_Iter->second.Boxes;

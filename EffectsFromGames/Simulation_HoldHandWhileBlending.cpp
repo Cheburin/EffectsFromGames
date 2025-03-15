@@ -30,6 +30,9 @@ namespace Simulation
 
 			HoldWhileBlendPlaying.insert(std::pair<char*, float>("climbing", 0.3f));
 			HoldWhileBlendPlaying.insert(std::pair<char*, float>("Freehang_Climb", 0.3f));
+
+			HoldWhileBlendPlaying.insert(std::pair<char*, float>("ActionPose_Release_And_Go_Down", -1.f));
+			HoldWhileBlendPlaying.insert(std::pair<char*, float>("Climb_Fold_Hands", -1.f));
 		}
 
 		char* CurrentAnimName = EveAnimationGraph->getAnimationName();

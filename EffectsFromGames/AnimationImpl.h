@@ -229,28 +229,52 @@ public:
 	void TransformJointTranslationSamples(int jointId, std::function<SimpleMath::Vector4 __cdecl(SimpleMath::Vector4)> f)
 	{
 		auto& JointSamples = JointsTranslationSamples[jointId];
-		for (int sampleIndex = 0; sampleIndex < JointSamples.X.size(); sampleIndex++)
+		if (!JointSamples.X.size())
 		{
-			auto p = SimpleMath::Vector4(JointSamples.X[sampleIndex].payload);
+			auto p = SimpleMath::Vector4(JointSamples.Y);
 			auto ret = f(p);
-			JointSamples.X[sampleIndex].payload.x = ret.x;
-			JointSamples.X[sampleIndex].payload.y = ret.y;
-			JointSamples.X[sampleIndex].payload.z = ret.z;
-			JointSamples.X[sampleIndex].payload.w = ret.w;
+			JointSamples.Y.x = ret.x;
+			JointSamples.Y.y = ret.y;
+			JointSamples.Y.z = ret.z;
+			JointSamples.Y.w = ret.w;
+		}
+		else
+		{
+			for (int sampleIndex = 0; sampleIndex < JointSamples.X.size(); sampleIndex++)
+			{
+				auto p = SimpleMath::Vector4(JointSamples.X[sampleIndex].payload);
+				auto ret = f(p);
+				JointSamples.X[sampleIndex].payload.x = ret.x;
+				JointSamples.X[sampleIndex].payload.y = ret.y;
+				JointSamples.X[sampleIndex].payload.z = ret.z;
+				JointSamples.X[sampleIndex].payload.w = ret.w;
+			}
 		}
 	}
 
 	void TransformJointRotationSamples(int jointId, std::function<SimpleMath::Vector4 __cdecl(SimpleMath::Vector4)> f)
 	{
 		auto& JointSamples = JointsRotationSamples[jointId];
-		for (int sampleIndex = 0; sampleIndex < JointSamples.X.size(); sampleIndex++)
+		if (!JointSamples.X.size())
 		{
-			auto p = SimpleMath::Vector4(JointSamples.X[sampleIndex].payload);
+			auto p = SimpleMath::Vector4(JointSamples.Y);
 			auto ret = f(p);
-			JointSamples.X[sampleIndex].payload.x = ret.x;
-			JointSamples.X[sampleIndex].payload.y = ret.y;
-			JointSamples.X[sampleIndex].payload.z = ret.z;
-			JointSamples.X[sampleIndex].payload.w = ret.w;
+			JointSamples.Y.x = ret.x;
+			JointSamples.Y.y = ret.y;
+			JointSamples.Y.z = ret.z;
+			JointSamples.Y.w = ret.w;
+		}
+		else
+		{
+			for (int sampleIndex = 0; sampleIndex < JointSamples.X.size(); sampleIndex++)
+			{
+				auto p = SimpleMath::Vector4(JointSamples.X[sampleIndex].payload);
+				auto ret = f(p);
+				JointSamples.X[sampleIndex].payload.x = ret.x;
+				JointSamples.X[sampleIndex].payload.y = ret.y;
+				JointSamples.X[sampleIndex].payload.z = ret.z;
+				JointSamples.X[sampleIndex].payload.w = ret.w;
+			}
 		}
 	}
 
@@ -265,6 +289,13 @@ public:
 		JointsScalingSamples[JointNo].assign(SimpleMath::Vector4(S));
 		JointsRotationSamples[JointNo].assign(SimpleMath::Vector4(Q));
 		JointsTranslationSamples[JointNo].assign(SimpleMath::Vector4(T));
+	}
+
+	void setJoint(int JointNo, JointSQT & joint)
+	{
+		JointsScalingSamples[JointNo].assign(SimpleMath::Vector4(joint[0]));
+		JointsRotationSamples[JointNo].assign(SimpleMath::Vector4(joint[1]));
+		JointsTranslationSamples[JointNo].assign(SimpleMath::Vector4(joint[2]));
 	}
 
 	void appendScaling(int JointNo, double t, float x, float y, float z)
@@ -435,15 +466,25 @@ public:
 			resetSampleIndex(jointIndex, 1);
 		}
 
-		auto t0 = MetaSamplesChannels[0].X[0].payload;
+		begin_translation = end_translation = prev_translation = SimpleMath::Vector3::Zero;
 
-		auto t1 = MetaSamplesChannels[0].X[MetaSamplesChannels[0].X.size() - 1].payload;
+		if (MetaSamplesChannels[0].X.size())
+		{
+			auto t0 = MetaSamplesChannels[0].X[0].payload;
 
-		begin_translation = SimpleMath::Vector3(t0.x, t0.y, t0.z);
+			auto t1 = MetaSamplesChannels[0].X[MetaSamplesChannels[0].X.size() - 1].payload;
 
-		end_translation = SimpleMath::Vector3(t1.x, t1.y, t1.z);
+			begin_translation = SimpleMath::Vector3(t0.x, t0.y, t0.z);
 
-		prev_translation = begin_translation;
+			end_translation = SimpleMath::Vector3(t1.x, t1.y, t1.z);
+
+			prev_translation = begin_translation;
+		}
+		else
+		{
+			RootJointSamples.Y = SimpleMath::Vector4(0.f, RootJointSamples.Y.y, 0.f, RootJointSamples.Y.w);
+			MetaSamplesChannels[0].Y = SimpleMath::Vector4::Zero;
+		}
 	}
 
 	AnimationRep2()

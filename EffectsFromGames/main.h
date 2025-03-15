@@ -20,6 +20,7 @@
 #include <assert.h>
 #include <malloc.h>
 #include <Exception>
+#include <string>
 
 #include "ConstantBuffer.h"
 
@@ -242,6 +243,8 @@ struct AnimationBase
 	virtual ~AnimationBase();
 
 	virtual std::vector<JointSQT>& __AnimGetJointsByTime(float Time){ return CurrentJoints; };
+
+	virtual void SetBlendTime(double& blendTime, bool& blendRoot){ };
 };
 
 inline void fillSkeletonTransformFromJoint(AnimationBase* animation, CharacterSkelet *skelet)
@@ -299,6 +302,8 @@ struct StaticObject
 
 	void getAllTriangles(std::vector<SimpleMath::Vector3> &vertex, const SimpleMath::Matrix & M);
 
+	std::vector< std::string > EmitLedges(const std::string& SpaceName, SimpleMath::Vector3& BoundBoxMin, SimpleMath::Vector3& BoundBoxMax);
+
 	~StaticObject();
 };
 
@@ -332,10 +337,12 @@ struct IAnimationGraph
 };
 
 struct AnimationGraph2Link;
+struct AnimationGraph2Links;
 
 struct IAnimationGraph2
 {
 	virtual void registerAnimation(char * name, AnimationBase * animation) = 0;
+	virtual AnimationGraph2Links createLinks(int Count, AnimationBase ** fromAnimations) = 0;
 	virtual AnimationGraph2Link createLink(AnimationBase * fromAnimation) = 0;
 	virtual void registerLink(AnimationBase * fromAnimation, AnimationBase * toAnimation, std::function<bool __cdecl()> cond) = 0;
 	virtual void start(AnimationBase * anim) = 0;
@@ -354,6 +361,10 @@ struct IAnimationGraph2
 	virtual AnimationBase* getPlayingAnimation() = 0;
 
 	virtual bool IsBlendActivated() = 0;
+
+	virtual char* GetCurrentConditionNodeName() = 0;
+
+	virtual AnimationBase* GetCurrentConditionNodeAnimation() = 0;
 };
 
 struct AnimationGraph2Link
@@ -375,8 +386,38 @@ struct AnimationGraph2Link
 	};
 };
 
+struct AnimationGraph2Links
+{
+	IAnimationGraph2 * graph;
+	int Count;
+	AnimationBase * _fromAnimation[10];
+	AnimationBase * _toAnimation[10];
+	AnimationGraph2Links& setEndPoint(AnimationBase ** toAnimation){
+		for (int i = 0; i < Count; i++)
+		{
+			_toAnimation[i] = toAnimation[i];
+		}
+		return *this;
+	};
+	AnimationGraph2Links& forward(std::function<bool __cdecl()> cond){
+		for (int i = 0; i < Count; i++)
+		{
+			graph->registerLink(_fromAnimation[i], _toAnimation[i], cond);
+		}
+		return *this;
+	};
+	AnimationGraph2Links& reverse(std::function<bool __cdecl()> cond){
+		for (int i = 0; i < Count; i++)
+		{ 
+			graph->registerLink(_toAnimation[i], _fromAnimation[i], cond);
+		}
+		return *this;
+	};
+};
+
 Character* loadCharacter(ID3D11Device* device, char * file_name);
 StaticObject* loadStaticObject(ID3D11Device* device, char * file_name);
+StaticObject* loadStaticObject2(ID3D11Device* device, char * file_name);
 void loadAnimations(IAnimationGraph2 *, CharacterSkelet * characterSkelet, TransformationFrame * frame);
 
 AnimationLinearBlend* makeBlend();
@@ -403,6 +444,7 @@ struct JointHelpers
 };
 
 void GetChain(Character * character, char * JointName0, char * JointName1, std::vector<int>& indexes);
+void GetChain(Character * character, char * JointName0, std::vector<int>& indexes);
 
 struct JointsRefsChainCollection
 {
@@ -424,6 +466,8 @@ struct JointsRefsChainCollection
 	std::vector<int> HipsHeadTop_End;
 	std::vector<int> HipsLeftToe_End;
 	std::vector<int> HipsRightToe_End;
+
+	std::vector<int> Hand_Childs[2][5];
 
 	int size()
 	{
@@ -466,6 +510,17 @@ struct JointsRefsChainCollection
 		GetChain(character, "Hips", "HeadTop_End", HipsHeadTop_End);
 		GetChain(character, "Hips", "LeftToe_End", HipsLeftToe_End);
 		GetChain(character, "Hips", "RightToe_End", HipsRightToe_End);
+
+		char* Domain = "Hand";
+		char* DomainPrefics[] = { "Left" , "Right" };
+		char* SubDomains[] = { "Thumb" , "Index" , "Middle" , "Ring" , "Pinky" };
+
+		for (int i = 0; i < 2; i++)
+			for (int j = 0; j < 5; j++)
+			{
+				auto Start = std::string(DomainPrefics[i]) + "Hand" + SubDomains[j] + "1";
+				GetChain(character, &Start[0], Hand_Childs[i][j]);
+			}
 	}
 };
 
@@ -519,6 +574,13 @@ struct Capsule : CollisionFrame{
 };
 
 struct Box : CollisionFrame{
+	Box(){}
+	Box(SimpleMath::Vector3& BoundBoxMin, SimpleMath::Vector3& BoundBoxMax, SimpleMath::Quaternion& __orientation)
+	{
+		origin = 0.5f*(BoundBoxMin + BoundBoxMax);
+		orientation = __orientation;
+		size = BoundBoxMax - BoundBoxMin;
+	}
 	static bool rayIntersectWithBox(const SimpleMath::Vector3& _S, const SimpleMath::Vector3& _V, float& t, SimpleMath::Vector3& _P)
 	{
 		struct VectorToArray{
@@ -740,6 +802,7 @@ namespace Simulation
 	void GrabLedgeByHand(const SimpleMath::Matrix& FromModelSpaceToWorld);
 	void EnterIntoWater(char* CapsuleName, char* ModelTransformName);
 	void HoldHand(char* CapsuleName, char* ModelTransformName);
+	void HoldToe(char* CapsuleName, char* ModelTransformName);
 	void HoldHandWhileBlending(char* CapsuleName, char* ModelTransformName);
 	void StartBallisticFly(const SimpleMath::Matrix& FromModelSpaceToWorld, const SimpleMath::Vector3& CapsuleForward);
 	void FinishBallisticFly(const SimpleMath::Matrix& CapsuleSystem, const float CapsuleAB, const float CapsuleR);
@@ -814,7 +877,7 @@ struct ClimbingPath
 
 struct IClimbingPathHelper
 {
-	enum EPath { Edge_Straight, Corner_Inside, Pre_Corner_Outside, Corner_Outside };
+	enum EPath { Edge_Straight, Corner_Inside, Pre_Corner_Outside, Corner_Outside, Pre_Edge_Break_Off, Fold_Edge_Break_Off, Edge_Break_Off };
 
 	virtual void LedgeToSegments() = 0;// SimpleMath::Vector3 HandLocation, char* PathName, int CatchSegmentIndex) = 0;
 
@@ -896,7 +959,7 @@ struct TDeltaRotation
 
 	SimpleMath::Quaternion Delta;
 	SimpleMath::Quaternion InverseDelta;
-	TDeltaRotation(SimpleMath::Vector3 V1, SimpleMath::Vector3 V2)
+	TDeltaRotation(SimpleMath::Vector3 V1 = SimpleMath::Vector3::Zero, SimpleMath::Vector3 V2 = SimpleMath::Vector3::Zero)
 	{
 		V1.y = 0; V1.Normalize();
 		V2.y = 0; V2.Normalize();

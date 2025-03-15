@@ -45,27 +45,26 @@ namespace
 		};
 		return CharacterForward.Cross(LedgeForward).y > 0.f ? 0 : 1;
 	}
+}
 
-	void GetBallisticTrajectoryParams(const SimpleMath::Matrix& FromModelSpaceToWorld, const SimpleMath::Vector3& forward, const SimpleMath::Vector3& Start, const SimpleMath::Vector3& Finish, SimpleMath::Vector3 & ballisticG, SimpleMath::Vector3 & ballisticInitialVelocity)
-	{
-		SimpleMath::Vector3 ProjectOnGround(const SimpleMath::Vector3 & a);
+void GetBallisticTrajectoryParams(const float Velocity, const SimpleMath::Matrix& FromModelSpaceToWorld, const SimpleMath::Vector3& forward, const SimpleMath::Vector3& Start, const SimpleMath::Vector3& Finish, SimpleMath::Vector3 & ballisticG, SimpleMath::Vector3 & ballisticInitialVelocity)
+{
+	SimpleMath::Vector3 ProjectOnGround(const SimpleMath::Vector3 & a);
 
-		auto InvertEveSkinnedModel = FromModelSpaceToWorld.Invert();
+	auto InvertEveSkinnedModel = FromModelSpaceToWorld.Invert();
 
-		float y0 = Start.y;
-		float yPeak = Start.y + 2.5f;
-		float yEnd = Finish.y;
+	float y0 = Start.y;
+	float yPeak = Start.y + 2.5f;
+	float yEnd = Finish.y;
 
-		auto D = (Finish - Start);
-		auto Velocity = 15.f;
-		auto t = ProjectOnGround(D).Length() / Velocity;
+	auto D = (Finish - Start);
+	auto t = ProjectOnGround(D).Length() / Velocity;
 
-		ballisticG = ( 4.0f*(y0 - 2.0f*yPeak + yEnd) / (t*t) ) * SimpleMath::Vector3(0, 1, 0);
-		ballisticInitialVelocity = Velocity * forward + (-1.0f*(3.0f*y0 - 4.0f*yPeak + yEnd) / t) * SimpleMath::Vector3(0, 1, 0);
+	ballisticG = ( 4.0f*(y0 - 2.0f*yPeak + yEnd) / (t*t) ) * SimpleMath::Vector3(0, 1, 0);
+	ballisticInitialVelocity = Velocity * forward + (-1.0f*(3.0f*y0 - 4.0f*yPeak + yEnd) / t) * SimpleMath::Vector3(0, 1, 0);
 
-		ballisticG = SimpleMath::Vector3::TransformNormal(ballisticG, InvertEveSkinnedModel);
-		ballisticInitialVelocity = SimpleMath::Vector3::TransformNormal(ballisticInitialVelocity, InvertEveSkinnedModel);
-	}
+	ballisticG = SimpleMath::Vector3::TransformNormal(ballisticG, InvertEveSkinnedModel);
+	ballisticInitialVelocity = SimpleMath::Vector3::TransformNormal(ballisticInitialVelocity, InvertEveSkinnedModel);
 }
 
 namespace Simulation
@@ -104,7 +103,7 @@ namespace Simulation
 
 						SimpleMath::Vector3 ballisticG;
 						SimpleMath::Vector3 ballisticInitialVelocity;
-						GetBallisticTrajectoryParams(FromModelSpaceToWorld, forward, state_ballistic_fly_Start_Location, state_ballistic_fly_Finish_Location, ballisticG, ballisticInitialVelocity);
+						GetBallisticTrajectoryParams(15.f, FromModelSpaceToWorld, forward, state_ballistic_fly_Start_Location, state_ballistic_fly_Finish_Location, ballisticG, ballisticInitialVelocity);
 						SetBallisticTrajectoryParams(BallisticAnimation, ballisticG, ballisticInitialVelocity);
 
 						state_ballistic_fly_Start_Location = SimpleMath::Vector3::Transform(state_ballistic_fly_Start_Location, FromModelSpaceToWorld.Invert());

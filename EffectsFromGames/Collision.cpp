@@ -692,7 +692,7 @@ bool collisionWithBox(const Cylinder & cylinder, const SimpleMath::Matrix& boxBa
 										}
 										else
 										{
-											edgeNormal = (faceNormal);// + tangent0);
+											edgeNormal = (faceNormal);// +tangent0);
 											edgeNormal.Normalize();
 										}
 									}
@@ -926,6 +926,27 @@ void physCollision(const Capsule& ca, const SimpleMath::Vector3 & worldDistance,
 		}
 		mesh_iter++;
 	}
+	
+	/*
+	int i = 0;
+	for (; HitInfos && i < HitInfos->size(); i++)
+	{
+		if (objectType == (*HitInfos)[i].objectType && objectName == (*HitInfos)[i].objectName)
+		{
+			impactPoint = (*HitInfos)[i].hitPoint;
+			impactNormal = (*HitInfos)[i].hitNormal;
+			break;
+		}
+	}
+
+	if (HitInfos && HitInfos->size() && i == HitInfos->size())
+	{
+		objectType = (*HitInfos)[i].objectType;
+		objectName = (*HitInfos)[i].objectName;
+		impactPoint = (*HitInfos)[i].hitPoint;
+		impactNormal = (*HitInfos)[i].hitNormal;
+	}
+	*/
 
 	T = min_t;
 }

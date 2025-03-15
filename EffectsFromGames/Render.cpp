@@ -35,6 +35,8 @@ extern EvePath g_EvePath;
 
 extern World GWorld;
 
+extern std::vector< std::string > GLedgesNames;
+
 ID3D11ShaderResourceView* null[] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 
 const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -447,20 +449,34 @@ void helpers_RenderCapsule(ID3D11DeviceContext* context, float fElapsedTime, Cap
 			context->RSSetState(G->render_states->Wireframe());
 		});
 
-		if (EveAnimationGraph->getAnimationName() == "BallisticFly")
+		if (EveAnimationGraph->getAnimationName() == "Left_Edge_Horizontal_Jump" || EveAnimationGraph->getAnimationName() == "Right_Edge_Horizontal_Jump")
 		{
 			SimpleMath::Vector3 BallisticAnimation_SimulatePath(AnimationBase * Animation, float Time);
 			const auto modelTransform = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"])
 				*SimpleMath::Matrix::CreateFromQuaternion(GWorld.Capsules["eve"].orientation)
 				*SimpleMath::Matrix::CreateTranslation(state_ballistic_fly_Start_World_Location);
 
-			for (int i = 0; i < 0; i++)
+			for (int i = 0; i < 200; i++)
 			{
 				const auto _Location = BallisticAnimation_SimulatePath(EveAnimationGraph->_getAnimation(), i*0.01f);
 				std_set_world_matrix(
 					SimpleMath::Matrix::CreateScale(.25f, .25f, .25f) *
-					SimpleMath::Matrix::CreateTranslation(SimpleMath::Vector3::Transform(_Location, modelTransform))
+					SimpleMath::Matrix::CreateTranslation(SimpleMath::Vector3::Transform(_Location, SimpleMath::Matrix::Identity))
 				);
+				set_scene_constant_buffer(context);
+				G->sphere_model->Draw(G->unlit_white_effect.get(), G->dxtk_primitive_to_unlit_white_input_layout.Get(), false, false, [=]{
+					context->RSSetState(G->render_states->Wireframe());
+				});
+			}
+
+			{
+				extern SimpleMath::Vector3 EdgeHorizontal_DebugLocation;
+
+				const auto _Location = EdgeHorizontal_DebugLocation;
+				std_set_world_matrix(
+					SimpleMath::Matrix::CreateScale(.5f, .5f, .5f) *
+					SimpleMath::Matrix::CreateTranslation(SimpleMath::Vector3::Transform(_Location, SimpleMath::Matrix::Identity))
+					);
 				set_scene_constant_buffer(context);
 				G->sphere_model->Draw(G->unlit_white_effect.get(), G->dxtk_primitive_to_unlit_white_input_layout.Get(), false, false, [=]{
 					context->RSSetState(G->render_states->Wireframe());
@@ -581,7 +597,23 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 			});
 		}
 	}
-	///
+
+	///GLedgesNames
+	for (int i = 0; i < GLedgesNames.size(); i++)
+	{
+		assert(GWorld.Ledges[GLedgesNames[i]].Boxes.size() == 1);
+		set_box_world_matrix(GWorld.Ledges[GLedgesNames[i]].Boxes[0].worldTransform);
+		set_scene_constant_buffer(context);
+		DrawQuad(context, G->box_effect.get(), [=]{
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+	}
+	
+	set_box_world_matrix(Matrix(GWorld.WorldTransforms["Ledges_Group_001"]));
+	set_scene_constant_buffer(context);
+	DrawQuad(context, G->box_effect.get(), [=]{
+		context->RSSetState(G->render_states->CullCounterClockwise());
+	});
 
 	///render sky sphere
 	set_scene_world_matrix_into_camera_origin();
@@ -781,7 +813,7 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 		}
 	};
 	///render eve
-	if (true)
+	if (false)
 	{
 		SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
 		AnimationBase* animation;

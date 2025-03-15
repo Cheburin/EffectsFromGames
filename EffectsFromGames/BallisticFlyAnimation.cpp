@@ -215,9 +215,9 @@ void SetBallisticAnimationCatherHand(AnimationBase * Animation, int CatherHandIn
 	BallisticAnimation->CurrentMetaChannels = BallisticAnimation->MetaChannelsByPose[CatherHandIndex];
 }
 
-SimpleMath::Vector3 BallisticAnimation_SimulatePath(AnimationBase * Animation, float Time)
-{
-	auto BallisticAnimation = (BallisticFlyAnimation*)Animation;
-
-	return BallisticAnimation->SimulatePath(Time);
-}
+//SimpleMath::Vector3 BallisticAnimation_SimulatePath(AnimationBase * Animation, float Time)
+//{
+	//auto BallisticAnimation = (BallisticFlyAnimation*)Animation;
+//
+//	//return BallisticAnimation->SimulatePath(Time);
+//}

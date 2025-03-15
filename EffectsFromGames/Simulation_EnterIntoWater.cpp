@@ -24,7 +24,7 @@ namespace Simulation
 {
 	void EnterIntoWater(char* CapsuleName, char* ModelTransformName)
 	{
-		if (state_falling && state_hanging && state_hanging_Ledge_Name == "Water")
+		if (state_hanging && state_hanging_Ledge_Name == "Water")
 		{
 			if (!state_into_water)
 			{

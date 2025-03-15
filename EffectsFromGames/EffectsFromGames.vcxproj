@@ -404,6 +404,7 @@
     <ClCompile Include="ConstantBuffer.h" />
     <ClCompile Include="CreateDestroyDevice.cpp" />
     <ClCompile Include="DrawCalls.cpp" />
+    <ClCompile Include="EdgeHorizontalJumpAnimation.cpp" />
     <ClCompile Include="FallingAndHangOnAnimation.cpp" />
     <ClCompile Include="Grid.cpp" />
     <ClCompile Include="HandClimbingPath.cpp" />
@@ -413,6 +414,7 @@
     <ClCompile Include="MsgProccess.cpp" />
     <ClCompile Include="Render.cpp" />
     <ClCompile Include="ShimmyAnimation.cpp" />
+    <ClCompile Include="Simulation_HoldToe.cpp" />
     <ClCompile Include="Simulation_UpdateCapsuleRotation.cpp" />
     <ClCompile Include="Simulation.cpp" />
     <ClCompile Include="Simulation_AutoKneeling.cpp" />

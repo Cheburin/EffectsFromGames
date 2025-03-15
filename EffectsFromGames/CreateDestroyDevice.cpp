@@ -39,6 +39,8 @@ EvePath g_EvePath;
 
 World GWorld;
 
+std::vector< std::string > GLedgesNames;
+
 extern D3D11_INPUT_ELEMENT_DESC CharacterInputElements[9];
 
 void CreateInputLayoutForCharacter(_In_ ID3D11Device* device, IEffect* effect, _Outptr_ ID3D11InputLayout** pInputLayout)
@@ -232,13 +234,13 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 
 		EveAnimationGraph = makeAnimationGraph(Eve->skelet, makeBlend(), makeAnimationPose());
 
+		jointsRefsChains.init(Eve);
+
 		loadAnimations(EveAnimationGraph, Eve->skelet, Eve->frame);
 
 		EveIKSolver = makeIKSolver(Eve);
 
 		ClimbingPathHelper = MakeClimbingPathHelper();
-
-		jointsRefsChains.init(Eve);
 
 		CreateInputLayoutForCharacter(device, G->eve_effect.get(), G->eve_input_layout.GetAddressOf());
 	}
@@ -280,7 +282,7 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 
 	GWorld.Boxes["platform1"].size = Vector3(15, 0.5, 15);
 	GWorld.Boxes["platform1"].orientation = Quaternion::CreateFromRotationMatrix(Matrix::Identity);
-	GWorld.Boxes["platform1"].origin = Vector3(-30 + 15.0f / 2, 2, -30 + 15.0f / 2);
+	GWorld.Boxes["platform1"].origin = Vector3( -30 + 15.0f / 2, 2, -30 + 15.0f / 2 );
 
 	GWorld.Boxes["platform2"].size = Vector3(15, 0.5, 15);
 	GWorld.Boxes["platform2"].orientation = Quaternion::CreateFromRotationMatrix(Matrix::Identity);
@@ -497,8 +499,39 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 	GWorld.Boxes["sub_box0"].evalWorldSize();
 	GWorld.Boxes["sub_box1"].evalWorldSize();
 
+	//static models
+	{
+		char* Pivot = "platform9";
+		char* LedgesGroupName = "Ledges_Group_001";
+		StaticObject* wallLedges = loadStaticObject2(device, "Media\\Models\\wallLedges.dae");
+
+		auto FrameOrientation = SimpleMath::Quaternion::Identity;
+		auto FrameOrigin = GWorld.Boxes[Pivot].origin + SimpleMath::Vector3(-1.8f*GWorld.Boxes[Pivot].size.x, -GWorld.Boxes[Pivot].origin.y, -11.f);
+
+		calculateFramesTransformations(wallLedges->frame, SimpleMath::Matrix::CreateFromQuaternion(FrameOrientation) * SimpleMath::Matrix::CreateTranslation(FrameOrigin));
+		SimpleMath::Vector3 BoundBoxMin, BoundBoxMax;
+		GLedgesNames = wallLedges->EmitLedges(LedgesGroupName, BoundBoxMin, BoundBoxMax);
+
+		BoundBoxMin.y = 0.f;
+		Box LedgesGroupBox = Box(BoundBoxMin, BoundBoxMax, FrameOrientation);
+		LedgesGroupBox.origin += SimpleMath::Vector3(-0.4f, 0, 0);
+		LedgesGroupBox.evalWorldSize();
+		GWorld.Boxes[LedgesGroupName] = LedgesGroupBox;
+		GWorld.WorldTransforms[LedgesGroupName] = SimpleMath::Matrix::CreateTranslation(-0.5, -0.5, -0.5) *	SimpleMath::Matrix::CreateScale(LedgesGroupBox.size) * LedgesGroupBox.getMatrix();
+		for (int i = 0; i < GLedgesNames.size(); i++)
+		{
+			assert(GWorld.Ledges[GLedgesNames[i]].Boxes.size() == 1);
+			GWorld.Ledges[GLedgesNames[i]].Owners.push_back(LedgesGroupBox);
+		}
+		//GLedgesNames.push_back(LedgesGroupName);
+
+		delete wallLedges;
+	}
+
 	return S_OK;
 }
+
+extern AnimationBase* DebugAnimation;
 
 //--------------------------------------------------------------------------------------
 // Release D3D11 resources created in OnD3D11CreateDevice 
@@ -524,4 +557,6 @@ void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 	_keyboard = 0;
 
 	delete G;
+
+	delete DebugAnimation;
 }

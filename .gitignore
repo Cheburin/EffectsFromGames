@@ -6,3 +6,5 @@
 *.suo
 *.opensdf
 /Debug
+/EffectsFromGames/Media/Animations/Edge/unused/*
+/ipch/*

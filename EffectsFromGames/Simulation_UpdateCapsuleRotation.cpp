@@ -104,6 +104,16 @@ namespace Simulation
 
 			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_With_Leg", "BallisticFly"));
 			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_WithOut_Leg", "BallisticFly"));
+
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("LeftShimmy", "Left_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Left_Edge_Horizontal_Jump", "Left_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
+
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_With_Leg", "Left_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
+
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("RightShimmy", "Right_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Right_Edge_Horizontal_Jump", "Right_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
+
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_With_Leg", "Right_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
 		}
 
 		////if (CurrentAnimationName != EveAnimationGraph->getAnimationName())// || (!EveAnimationGraph->IsBlendActivated() && SignalResetRotations))
@@ -213,6 +223,8 @@ namespace Simulation
 				//(*GetSkeletonMatrix(Eve->skelet, 64)) = RootJoint.matrix();
 				
 				__AnimResampleCurrentRootRotation(EveAnimationGraph->getPlayingAnimation());
+
+				EveAnimationGraph->getAnimationBlend()->CurrentJoints[64][1] = EveAnimationGraph->getPlayingAnimation()->CurrentJoints[64][1];
 
 				__AnimSetRootDeltaRotation(EveAnimationGraph->getPlayingAnimation(), SimpleMath::Quaternion::Identity);
 

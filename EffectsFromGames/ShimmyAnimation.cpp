@@ -97,6 +97,10 @@ struct ShimmyAnimation : public Animation
 	Animation* Corner_Inside_Hanging;
 	Animation* Corner_Outside_Hanging;
 
+	Animation* Climb_Look_Idle_L;
+	Animation* Climb_Look_Idle_R;
+	Animation* Climb_Fold_Hands;
+
 	float AnimationTime;
 	float BlendK;
 
@@ -205,6 +209,22 @@ struct ShimmyAnimation : public Animation
 		Corner_Inside_Hanging = LoadAnimation1(FramesNamesIndex, getSkeletMatrix, calculateFramesTrans, MoveRight, false, "Media\\Animations\\Edge\\Climb_Walk_Corner_Inside_Hanging_R1.FBX");
 		Corner_Outside_Hanging = LoadAnimation2(FramesNamesIndex, getSkeletMatrix, calculateFramesTrans, MoveRight, false, "Media\\Animations\\Edge\\Climb_Walk_Corner_Outside_Hanging_R2.FBX");
 
+		{
+			Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
+			Animation* loadAnimationFromBlender(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
+			void AnimationSetJointT(Animation * anim, int JointNum, SimpleMath::Vector3 Translation);
+
+			Climb_Look_Idle_L = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_L.FBX", FramesNamesIndex);
+			extractAnimationMeta(Climb_Look_Idle_L, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+
+			Climb_Look_Idle_R = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_R.FBX", FramesNamesIndex);
+			extractAnimationMeta(Climb_Look_Idle_R, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+
+			Climb_Fold_Hands = loadAnimationFromBlender("Media\\Animations\\Edge\\Climb_Fold_Hands.dae", FramesNamesIndex);
+			AnimationSetJointT(Climb_Fold_Hands, 64, SimpleMath::Vector3(0, 24, 0));
+			extractAnimationMeta(Climb_Fold_Hands, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+		}
+
 		MasterHandIndex = 0;
 		SlaveHandIndex = 1;
 
@@ -228,13 +248,22 @@ struct ShimmyAnimation : public Animation
 	{
 		delete Impl;
 
+
 		delete Shimmy;
 
 		delete BracedHangShimmy;
 
+
 		delete Corner_Inside_Hanging;
 
 		delete Corner_Outside_Hanging;
+
+
+		delete Climb_Look_Idle_L;
+
+		delete Climb_Look_Idle_R;
+
+		delete Climb_Fold_Hands;
 	}
 
 	Animation* ChooseShimmy()
@@ -303,6 +332,18 @@ struct ShimmyAnimation : public Animation
 			BlendHandIndex = SlaveHandIndex;
 
 			NewAnimation = ChooseShimmy();
+		}
+		else if (Ret == IClimbingPathHelper::EPath::Fold_Edge_Break_Off)
+		{
+			BlendHandIndex = MasterHandIndex;
+
+			NewAnimation = Climb_Fold_Hands;
+		}
+		else if (Ret == IClimbingPathHelper::EPath::Edge_Break_Off)
+		{
+			BlendHandIndex = SlaveHandIndex;
+
+			NewAnimation = SlaveHandIndex == 0 ? Climb_Look_Idle_R : Climb_Look_Idle_L;
 		}
 
 		if (CurrentAnimation != NewAnimation)
@@ -553,7 +594,12 @@ struct FClimbingPathHelper : IClimbingPathHelper
 		{
 			static auto Y = SimpleMath::Vector3(0, 1, 0);
 			float F = SegmentA.Basis.Cross(SegmentB.Basis).Dot(Y);
-			if (-.00001f < F && F < .00001f)
+			if (SegmentA.A == SegmentB.A && SegmentA.B == SegmentB.B)
+			{
+				sprintf(DebugBuffer, "EPath::Pre_Edge_Break_Off\n"); Debug();
+				return EPath::Pre_Edge_Break_Off;
+			}
+			else if (-.00001f < F && F < .00001f)
 			{
 				sprintf(DebugBuffer, "EPath::Edge_Straight\n"); Debug();
 				return EPath::Edge_Straight;
@@ -721,11 +767,11 @@ struct FClimbingPathHelper : IClimbingPathHelper
 
 			Segments[PrevSegmentIndex].bInit = true;
 		}
-		if ((CurrentSegment.B - Segments[NextSegmentIndex].A).LengthSquared() != 0.0f)
+		if (CurrentSegmentIndex != NextSegmentIndex && (CurrentSegment.B - Segments[NextSegmentIndex].A).LengthSquared() != 0.0f)
 		{
 			IntersectSegments(CurrentSegment, Segments[NextSegmentIndex]);
 		}
-		if ((Segments[PrevSegmentIndex].B - CurrentSegment.A).LengthSquared() != 0.0f)
+		if (PrevSegmentIndex != CurrentSegmentIndex && (Segments[PrevSegmentIndex].B - CurrentSegment.A).LengthSquared() != 0.0f)
 		{
 			IntersectSegments(Segments[PrevSegmentIndex], CurrentSegment);
 		}
@@ -751,18 +797,22 @@ struct FClimbingPathHelper : IClimbingPathHelper
 
 				NewSegmentIndex = CurrentSegmentIndex;
 
+				bool bComputePathState = false;
+
 				if (1.0f < PredictSegmentCoord)
 				{
+					bComputePathState = true;
 					NewSegmentIndex = NextSegmentIndex;
 				}
 				else if (PredictSegmentCoord < 0.f)
 				{
+					bComputePathState = true;
 					NewSegmentIndex = PrevSegmentIndex;
 				}
 
 				//sprintf(DebugBuffer, "Climb Helper Advanse %d %f %f\n", CurrentSegmentIndex, PredictSegmentCoord, GetSegmentCoord(MasterHandLocation)); Debug();
 
-				if (NewSegmentIndex != CurrentSegmentIndex)
+				if (bComputePathState)
 				{
 					StartYaw  = Quat().decompose0(RootRotation).yaw0;
 
@@ -876,6 +926,24 @@ struct FClimbingPathHelper : IClimbingPathHelper
 				RootRotation = Q.RootRotation;
 
 				return CurrentPathState = EPath::Edge_Straight;
+			}
+		}
+
+		if (CurrentPathState == EPath::Pre_Edge_Break_Off)
+		{
+			DeltaTranslation += ToSegmentBasis(SlaveHandLocation, CurrentSegmentIndex) - SlaveHandLocation;
+			if (GetSegmentCoord(MasterHandLocation, CurrentSegmentIndex) <= .05f || .95f <= GetSegmentCoord(MasterHandLocation, CurrentSegmentIndex))
+			{
+				return CurrentPathState = EPath::Fold_Edge_Break_Off;
+			}
+		}
+
+		if (CurrentPathState == EPath::Fold_Edge_Break_Off)
+		{
+			auto t = LocalTime - 0.250f;
+			if (0.f <= t)
+			{
+				return CurrentPathState = EPath::Edge_Break_Off;
 			}
 		}
 
@@ -1148,5 +1216,15 @@ int GetShimmyAnimationKind(AnimationBase *animation)
 {
 	auto Shimmy = ((ShimmyAnimation*)animation);
 
+	if (((FClimbingPathHelper*)ClimbingPathHelper)->CurrentPathState == IClimbingPathHelper::EPath::Edge_Break_Off)
+	{
+		return 0;
+	}
+
 	return Shimmy->ShimmyKind;
+}
+
+int IsShimmyAnimationEdgeBreakOff(AnimationBase *animation)
+{
+	return ((FClimbingPathHelper*)ClimbingPathHelper)->CurrentPathState == IClimbingPathHelper::EPath::Edge_Break_Off;
 }

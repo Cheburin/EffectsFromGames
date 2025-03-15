@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <asset>
+    <contributor>
+      <author>Blender User</author>
+      <authoring_tool>Blender 4.0.1 commit date:2023-11-16, commit time:16:40, hash:d0dd92834a08</authoring_tool>
+    </contributor>
+    <created>2024-12-29T00:57:53</created>
+    <modified>2024-12-29T00:57:53</modified>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_images/>
+  <library_controllers/>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="Armature" name="Armature" type="NODE">
+        <matrix sid="transform">0.01 0 0 0 0 7.54979e-10 -0.01 0 0 0.01 7.54979e-10 0 0 0 0 1</matrix>
+        <node id="Armature_Hips" name="Hips" sid="Hips" type="JOINT">
+          <matrix sid="transform">0.9946216 0.03359794 -0.09797546 -0.1442037 0.007350614 0.9206452 0.390331 122.9524 0.103315 -0.3889518 0.9154467 0.5103419 0 0 0 1</matrix>
+          <node id="Armature_Spine" name="Spine" sid="Spine" type="JOINT">
+            <matrix sid="transform">0.9998456 0.004448414 -0.01699509 0.009024143 -0.006683033 0.9909878 -0.1337842 7.062584 0.01624682 0.1338772 0.9908647 -0.984684 0 0 0 1</matrix>
+            <node id="Armature_Spine1" name="Spine1" sid="Spine1" type="JOINT">
+              <matrix sid="transform">0.9995258 0.009613519 -0.02925459 0.0124166 -0.01702909 0.9640963 -0.2650067 8.239662 0.02565661 0.2653791 0.9638029 -1.148849 0 0 0 1</matrix>
+              <node id="Armature_Spine2" name="Spine2" sid="Spine2" type="JOINT">
+                <matrix sid="transform">0.9995258 0.009613514 -0.0292546 0.01419014 -0.01702909 0.9640964 -0.2650064 9.416794 0.02565661 0.2653789 0.9638029 -1.312966 0 0 0 1</matrix>
+                <node id="Armature_Neck" name="Neck" sid="Neck" type="JOINT">
+                  <matrix sid="transform">0.9989787 -0.008953911 0.0442891 0.01596379 -2.85678e-4 0.9788985 0.2043472 10.59383 -0.04518422 -0.2041512 0.9778961 -1.477077 0 0 0 1</matrix>
+                  <node id="Armature_Head" name="Head" sid="Head" type="JOINT">
+                    <matrix sid="transform">0.999266 -0.0335463 0.01850008 -5.96046e-8 0.02492993 0.9360961 0.3508599 5.056427 -0.02908792 -0.350141 0.9362453 0.7195625 0 0 0 1</matrix>
+                    <node id="Armature_HeadTop_End" name="HeadTop_End" sid="HeadTop_End" type="JOINT">
+                      <matrix sid="transform">1 -1.30385e-8 0 4.76837e-7 1.86265e-8 0.9999999 2.08616e-7 15.14366 0 -1.78814e-7 1 2.155033 0 0 0 1</matrix>
+                    </node>
+                  </node>
+                </node>
+                <node id="Armature_LeftShoulder" name="LeftShoulder" sid="LeftShoulder" type="JOINT">
+                  <matrix sid="transform">0.8066261 -0.5902273 -0.03140078 3.528528 0.5905695 0.8069842 0.002057821 8.730377 0.02412531 -0.02020426 0.9995047 -1.456055 0 0 0 1</matrix>
+                  <node id="Armature_LeftArm" name="LeftArm" sid="LeftArm" type="JOINT">
+                    <matrix sid="transform">0.4230936 0.04160564 -0.9051301 7.613197 0.6407821 0.6925305 0.33136 -2.298218 0.6406168 -0.7201876 0.2663453 0.04206085 0 0 0 1</matrix>
+                    <node id="Armature_LeftForeArm" name="LeftForeArm" sid="LeftForeArm" type="JOINT">
+                      <matrix sid="transform">0.9159763 -0.06667289 -0.3956545 18.91457 0.1642844 0.9619703 0.2182292 0.2055435 0.3660578 -0.2648926 0.8920951 -1.585617 0 0 0 1</matrix>
+                      <node id="Armature_LeftHand" name="LeftHand" sid="LeftHand" type="JOINT">
+                        <matrix sid="transform">0.8434646 -0.5323893 -0.07161862 18.43616 0.5207038 0.843059 -0.1346074 0 0.1320422 0.07624447 0.9883075 -1.90735e-5 0 0 0 1</matrix>
+                        <node id="Armature_LeftHandThumb1" name="LeftHandThumb1" sid="LeftHandThumb1" type="JOINT">
+                          <matrix sid="transform">0.8150429 -0.5300319 -0.2340326 3.086243 0.5749313 0.789918 0.2132688 -1.283707 0.07182731 -0.3083758 0.948549 1.42276 0 0 0 1</matrix>
+                          <node id="Armature_LeftHandThumb2" name="LeftHandThumb2" sid="LeftHandThumb2" type="JOINT">
+                            <matrix sid="transform">0.8926743 0.08905402 0.4418166 2.251144 0.03496066 0.9636492 -0.2648732 -1.2997 -0.4493442 0.2518917 0.8571116 1.299706 0 0 0 1</matrix>
+                            <node id="Armature_LeftHandThumb3" name="LeftHandThumb3" sid="LeftHandThumb3" type="JOINT">
+                              <matrix sid="transform">0.9996406 0.02653552 0.003787205 2.250412 -0.02646465 0.9994935 -0.01767531 -1.29928 -0.004254311 0.01756871 0.9998366 1.299269 0 0 0 1</matrix>
+                              <node id="Armature_LeftHandThumb4" name="LeftHandThumb4" sid="LeftHandThumb4" type="JOINT">
+                                <matrix sid="transform">1 -1.63913e-7 -1.15484e-7 1.642029 1.63913e-7 1 1.78814e-7 -0.8764095 1.22935e-7 -1.49012e-7 1 0.9589071 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node id="Armature_LeftHandIndex1" name="LeftHandIndex1" sid="LeftHandIndex1" type="JOINT">
+                          <matrix sid="transform">0.6529558 0.755238 -0.0571323 7.463974 -0.7463428 0.6544336 0.1211984 1.012981 0.1289229 -0.03649694 0.9909827 1.910782 0 0 0 1</matrix>
+                          <node id="Armature_LeftHandIndex2" name="LeftHandIndex2" sid="LeftHandIndex2" type="JOINT">
+                            <matrix sid="transform">0.7971677 0.5933223 0.1117696 3.142006 -0.6027227 0.7928818 0.08979639 -0.4199371 -0.03534186 -0.1389489 0.9896686 -0.1570358 0 0 0 1</matrix>
+                            <node id="Armature_LeftHandIndex3" name="LeftHandIndex3" sid="LeftHandIndex3" type="JOINT">
+                              <matrix sid="transform">0.9984856 0.05435541 0.008499891 2.086575 -0.05437344 0.998519 0.001901023 -0.2402954 -0.00838396 -0.002360314 0.9999621 -0.1191406 0 0 0 1</matrix>
+                              <node id="Armature_LeftHandIndex4" name="LeftHandIndex4" sid="LeftHandIndex4" type="JOINT">
+                                <matrix sid="transform">1 5.96046e-8 -8.9407e-8 1.940559 -2.98023e-8 1 -3.72529e-8 -0.1167908 5.96046e-8 -7.45058e-9 1 -0.0941658 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node id="Armature_LeftHandMiddle1" name="LeftHandMiddle1" sid="LeftHandMiddle1" type="JOINT">
+                          <matrix sid="transform">0.6851442 0.7210792 -0.1030644 7.485916 -0.6978642 0.6903543 0.1907791 1.40667 0.2087176 -0.05878624 0.9762076 0.2196884 0 0 0 1</matrix>
+                          <node id="Armature_LeftHandMiddle2" name="LeftHandMiddle2" sid="LeftHandMiddle2" type="JOINT">
+                            <matrix sid="transform">0.8757703 0.4628609 0.137063 3.573353 -0.4684137 0.883458 0.009518072 -0.7166443 -0.1166839 -0.07253785 0.9905167 -0.3488541 0 0 0 1</matrix>
+                            <node id="Armature_LeftHandMiddle3" name="LeftHandMiddle3" sid="LeftHandMiddle3" type="JOINT">
+                              <matrix sid="transform">0.9953024 0.09373295 0.02423677 2.260979 -0.09368189 0.9955969 -0.003236692 -0.4532776 -0.02443346 9.51008e-4 0.999701 -0.06719208 0 0 0 1</matrix>
+                              <node id="Armature_LeftHandMiddle4" name="LeftHandMiddle4" sid="LeftHandMiddle4" type="JOINT">
+                                <matrix sid="transform">1 -9.31323e-10 -5.96046e-8 2.060345 -1.86265e-8 1 -5.02914e-8 -0.2149811 8.9407e-8 4.84288e-8 1 -0.009773254 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node id="Armature_LeftHandRing1" name="LeftHandRing1" sid="LeftHandRing1" type="JOINT">
+                          <matrix sid="transform">0.6951545 0.7181495 0.03195877 7.119965 -0.6800199 0.6425292 0.3531702 1.518379 0.2330945 -0.2672405 0.9350132 -1.082878 0 0 0 1</matrix>
+                          <node id="Armature_LeftHandRing2" name="LeftHandRing2" sid="LeftHandRing2" type="JOINT">
+                            <matrix sid="transform">0.8082378 0.586426 0.0534443 3.211262 -0.5820132 0.8093448 -0.07887869 -0.763031 -0.08951133 0.03264748 0.9954507 -0.5296555 0 0 0 1</matrix>
+                            <node id="Armature_LeftHandRing3" name="LeftHandRing3" sid="LeftHandRing3" type="JOINT">
+                              <matrix sid="transform">0.9932771 0.02144855 0.113757 1.989311 -0.01957083 0.9996536 -0.01759806 -0.3363037 -0.1140951 0.01525341 0.9933528 -0.2749825 0 0 0 1</matrix>
+                              <node id="Armature_LeftHandRing4" name="LeftHandRing4" sid="LeftHandRing4" type="JOINT">
+                                <matrix sid="transform">1 1.3411e-7 0 2.030743 -1.08033e-7 1 -1.49012e-8 -0.3001862 -2.98023e-8 -2.42144e-8 1 -0.0412674 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node id="Armature_LeftHandPinky1" name="LeftHandPinky1" sid="LeftHandPinky1" type="JOINT">
+                          <matrix sid="transform">0.5674609 0.8233469 -0.0093835 6.576431 -0.7509113 0.5221457 0.4043466 1.184883 0.337817 -0.2224048 0.9145578 -2.431358 0 0 0 1</matrix>
+                          <node id="Armature_LeftHandPinky2" name="LeftHandPinky2" sid="LeftHandPinky2" type="JOINT">
+                            <matrix sid="transform">0.9626802 0.2614914 0.06977677 3.049582 -0.2508217 0.9588657 -0.1329095 -0.4794922 -0.1016611 0.1104477 0.9886688 -0.6277809 0 0 0 1</matrix>
+                            <node id="Armature_LeftHandPinky3" name="LeftHandPinky3" sid="LeftHandPinky3" type="JOINT">
+                              <matrix sid="transform">0.9686197 0.1983217 0.1498142 1.780502 -0.196458 0.9801325 -0.02728995 -0.4465027 -0.1522499 -0.002998563 0.9883376 -0.2320709 0 0 0 1</matrix>
+                              <node id="Armature_LeftHandPinky4" name="LeftHandPinky4" sid="LeftHandPinky4" type="JOINT">
+                                <matrix sid="transform">1 2.98023e-8 -5.96046e-8 1.853767 1.86265e-9 1 4.56348e-8 -0.08409119 -2.98023e-8 -3.07336e-8 1 0.04974365 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                      </node>
+                    </node>
+                  </node>
+                </node>
+                <node id="Armature_RightShoulder" name="RightShoulder" sid="RightShoulder" type="JOINT">
+                  <matrix sid="transform">0.7196062 0.5605161 0.4098644 -3.474256 -0.5503973 0.8202999 -0.1554706 8.730347 -0.4233555 -0.1137107 0.8987992 -1.498108 0 0 0 1</matrix>
+                  <node id="Armature_RightArm" name="RightArm" sid="RightArm" type="JOINT">
+                    <matrix sid="transform">0.6175845 0.2130833 0.7570899 -7.569351 -0.6549127 0.6723573 0.3449997 -2.306854 -0.4355212 -0.7088942 0.5547885 -0.04206085 0 0 0 1</matrix>
+                    <node id="Armature_RightForeArm" name="RightForeArm" sid="RightForeArm" type="JOINT">
+                      <matrix sid="transform">0.921787 -0.008804888 0.3875969 -18.90784 -0.1304264 0.9344289 0.3314083 0.2141724 -0.3650997 -0.3560407 0.8601959 -1.459435 0 0 0 1</matrix>
+                      <node id="Armature_RightHand" name="RightHand" sid="RightHand" type="JOINT">
+                        <matrix sid="transform">0.818759 0.5270703 0.2276632 -18.46194 -0.563227 0.8142909 0.1403767 -0.008560181 -0.1113957 -0.2431607 0.9635683 -0.1439972 0 0 0 1</matrix>
+                        <node id="Armature_RightHandThumb1" name="RightHandThumb1" sid="RightHandThumb1" type="JOINT">
+                          <matrix sid="transform">0.9622963 0.2708688 -0.02481124 -3.037399 -0.2693577 0.9362749 -0.2254672 -1.206429 -0.03784198 0.2236494 0.9739348 1.359055 0 0 0 1</matrix>
+                          <node id="Armature_RightHandThumb2" name="RightHandThumb2" sid="RightHandThumb2" type="JOINT">
+                            <matrix sid="transform">0.9867055 0.1624402 -0.005064096 -2.193375 -0.1582658 0.9674981 0.1972299 -1.266346 0.03693754 -0.1938063 0.9803442 1.266361 0 0 0 1</matrix>
+                            <node id="Armature_RightHandThumb3" name="RightHandThumb3" sid="RightHandThumb3" type="JOINT">
+                              <matrix sid="transform">0.9999999 -2.67029e-5 -1.54227e-6 -2.259933 2.67029e-5 1 -1.48714e-5 -1.30475 1.53482e-6 1.49012e-5 1 1.304726 0 0 0 1</matrix>
+                              <node id="Armature_RightHandThumb4" name="RightHandThumb4" sid="RightHandThumb4" type="JOINT">
+                                <matrix sid="transform">1 5.96046e-8 2.75671e-7 -1.680481 -5.96046e-8 0.9999999 -3.57628e-7 -0.9702234 -2.6077e-7 3.8743e-7 1 0.9702339 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node id="Armature_RightHandIndex1" name="RightHandIndex1" sid="RightHandIndex1" type="JOINT">
+                          <matrix sid="transform">0.6886785 -0.7243962 0.03117516 -7.397781 0.7250668 0.6880389 -0.0296734 1.01548 4.55976e-5 0.04303958 0.9990733 2.172443 0 0 0 1</matrix>
+                          <node id="Armature_RightHandIndex2" name="RightHandIndex2" sid="RightHandIndex2" type="JOINT">
+                            <matrix sid="transform">0.7563276 -0.6531988 0.03605831 -3.1824 0.6540393 0.7561958 -0.02001871 -0.4139404 -0.01419094 0.03872418 0.9991492 -0.2747078 0 0 0 1</matrix>
+                            <node id="Armature_RightHandIndex3" name="RightHandIndex3" sid="RightHandIndex3" type="JOINT">
+                              <matrix sid="transform">0.9985594 -0.03579649 -0.0399735 -2.086571 0.03569361 0.9993575 -0.003284246 -0.2402802 0.04006538 0.001852751 0.9991954 -0.1191483 0 0 0 1</matrix>
+                              <node id="Armature_RightHandIndex4" name="RightHandIndex4" sid="RightHandIndex4" type="JOINT">
+                                <matrix sid="transform">1 2.38419e-7 5.96046e-8 -1.982117 -2.38419e-7 1 7.45058e-9 -0.156601 -2.98023e-8 1.49012e-8 1 -0.03290558 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node id="Armature_RightHandMiddle1" name="RightHandMiddle1" sid="RightHandMiddle1" type="JOINT">
+                          <matrix sid="transform">0.7478669 -0.6626588 -0.03972854 -7.291855 0.6600127 0.7357886 0.1516507 1.320305 -0.0712609 -0.1396358 0.9876354 0.5040741 0 0 0 1</matrix>
+                          <node id="Armature_RightHandMiddle2" name="RightHandMiddle2" sid="RightHandMiddle2" type="JOINT">
+                            <matrix sid="transform">0.7155937 -0.696779 -0.04923987 -3.7416 0.6793368 0.710619 -0.18309 -0.7838287 0.1625641 0.0975676 0.9818622 -0.4892578 0 0 0 1</matrix>
+                            <node id="Armature_RightHandMiddle3" name="RightHandMiddle3" sid="RightHandMiddle3" type="JOINT">
+                              <matrix sid="transform">0.9984171 -2.47359e-6 -0.05624461 -2.260983 -4.0555e-4 0.9999736 -0.007243693 -0.2911835 0.05624318 0.007255055 0.9983908 -0.06718445 0 0 0 1</matrix>
+                              <node id="Armature_RightHandMiddle4" name="RightHandMiddle4" sid="RightHandMiddle4" type="JOINT">
+                                <matrix sid="transform">1 -3.72529e-8 -5.96046e-8 -1.9016 0 0.9999999 -7.45058e-9 -0.245285 0 4.84288e-8 1 0.05233765 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node id="Armature_RightHandRing1" name="RightHandRing1" sid="RightHandRing1" type="JOINT">
+                          <matrix sid="transform">0.774152 -0.6290379 0.07070848 -7.094162 0.617346 0.7749708 0.1352922 1.655785 -0.139901 -0.06108503 0.9882796 -0.9388885 0 0 0 1</matrix>
+                          <node id="Armature_RightHandRing2" name="RightHandRing2" sid="RightHandRing2" type="JOINT">
+                            <matrix sid="transform">0.7083328 -0.6821564 -0.1814588 -3.21125 0.6957649 0.7180806 0.01647547 -0.8919067 0.1190632 -0.1379227 0.9832605 -0.5296593 0 0 0 1</matrix>
+                            <node id="Armature_RightHandRing3" name="RightHandRing3" sid="RightHandRing3" type="JOINT">
+                              <matrix sid="transform">0.9934289 0.04729442 -0.1042228 -1.989323 -0.04981427 0.9985224 -0.02170686 -0.336319 0.1030422 0.02675603 0.9943171 -0.2749729 0 0 0 1</matrix>
+                              <node id="Armature_RightHandRing4" name="RightHandRing4" sid="RightHandRing4" type="JOINT">
+                                <matrix sid="transform">1 1.49012e-8 2.98023e-8 -2.034939 -7.45058e-9 0.9999999 -2.98023e-8 -0.4476013 -5.96046e-8 7.07805e-8 1 -0.0602417 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node id="Armature_RightHandPinky1" name="RightHandPinky1" sid="RightHandPinky1" type="JOINT">
+                          <matrix sid="transform">0.8090256 -0.5645697 -0.1635187 -6.550659 0.5770963 0.7101871 0.4032296 1.457878 -0.1115224 -0.4205891 0.9003707 -2.287369 0 0 0 1</matrix>
+                          <node id="Armature_RightHandPinky2" name="RightHandPinky2" sid="RightHandPinky2" type="JOINT">
+                            <matrix sid="transform">0.8552737 -0.5050563 0.115867 -3.135559 0.5136492 0.7968406 -0.3181341 -0.7563171 0.06834817 0.3316067 0.9409385 -0.6027489 0 0 0 1</matrix>
+                            <node id="Armature_RightHandPinky3" name="RightHandPinky3" sid="RightHandPinky3" type="JOINT">
+                              <matrix sid="transform">0.9742574 -0.2200018 -0.04921177 -1.668234 0.2218577 0.9744123 0.03604971 -0.4341888 0.04002148 -0.04603968 0.9981377 -0.3975792 0 0 0 1</matrix>
+                              <node id="Armature_RightHandPinky4" name="RightHandPinky4" sid="RightHandPinky4" type="JOINT">
+                                <matrix sid="transform">1 1.3411e-7 2.98023e-8 -1.885654 -1.3411e-7 1 1.11759e-8 -0.04100037 2.98023e-8 -5.21541e-8 0.9999999 -0.3586006 0 0 0 1</matrix>
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                      </node>
+                    </node>
+                  </node>
+                </node>
+              </node>
+            </node>
+          </node>
+          <node id="Armature_LeftUpLeg" name="LeftUpLeg" sid="LeftUpLeg" type="JOINT">
+            <matrix sid="transform">0.8364323 -0.5227118 0.1647827 6.975856 -0.1220441 0.1154721 0.9857845 -3.922043 -0.534309 -0.8446529 0.03279072 -0.9751472 0 0 0 1</matrix>
+            <node id="Armature_LeftLeg" name="LeftLeg" sid="LeftLeg" type="JOINT">
+              <matrix sid="transform">0.9305795 -0.002352528 -0.3660823 -0.5854721 -0.3068862 -0.5502406 -0.776567 -33.47068 -0.1996065 0.8350028 -0.5127643 1.467537 0 0 0 1</matrix>
+              <node id="Armature_LeftFoot" name="LeftFoot" sid="LeftFoot" type="JOINT">
+                <matrix sid="transform">0.9696378 -0.2317537 -0.07805599 0.5981407 0.2374903 0.8162891 0.5265649 -34.74937 -0.05831713 -0.5291147 0.846544 -2.748051 0 0 0 1</matrix>
+                <node id="Armature_LeftToeBase" name="LeftToeBase" sid="LeftToeBase" type="JOINT">
+                  <matrix sid="transform">0.9983359 0.034068 -0.04653012 0.7361002 0.0102481 0.6892042 0.7244949 -8.496819 0.05675085 -0.723766 0.6877079 7.071692 0 0 0 1</matrix>
+                  <node id="Armature_LeftToe_End" name="LeftToe_End" sid="LeftToe_End" type="JOINT">
+                    <matrix sid="transform">1 9.31323e-8 0 0.1989412 -9.31323e-8 1 1.01328e-6 0.04530334 1.86265e-9 -1.01328e-6 1 6.057304 0 0 0 1</matrix>
+                  </node>
+                </node>
+              </node>
+            </node>
+          </node>
+          <node id="Armature_RightUpLeg" name="RightUpLeg" sid="RightUpLeg" type="JOINT">
+            <matrix sid="transform">0.7921758 0.594277 -0.1388965 -6.799729 0.2766839 -0.146861 0.9496726 -3.922035 0.5439702 -0.790738 -0.2807668 -0.9751472 0 0 0 1</matrix>
+            <node id="Armature_RightLeg" name="RightLeg" sid="RightLeg" type="JOINT">
+              <matrix sid="transform">0.9203283 0.02693769 0.3902181 0.5854797 0.3232939 -0.6139453 -0.7201057 -33.47068 0.2201745 0.7888889 -0.57374 1.467537 0 0 0 1</matrix>
+              <node id="Armature_RightFoot" name="RightFoot" sid="RightFoot" type="JOINT">
+                <matrix sid="transform">0.9985926 0.05124414 0.01367638 -0.5981407 -0.05196152 0.8935582 0.4459302 -34.74934 0.01063062 -0.4460131 0.8949633 -2.748057 0 0 0 1</matrix>
+                <node id="Armature_RightToeBase" name="RightToeBase" sid="RightToeBase" type="JOINT">
+                  <matrix sid="transform">0.9772971 -0.1842199 0.1046589 -0.7361012 0.07974575 0.7774722 0.6238409 -8.496841 -0.1962933 -0.6013318 0.7745122 7.071678 0 0 0 1</matrix>
+                  <node id="Armature_RightToe_End" name="RightToe_End" sid="RightToe_End" type="JOINT">
+                    <matrix sid="transform">1 -1.56462e-7 5.02914e-8 -0.1989384 1.71363e-7 1 -1.49012e-7 0.04529381 -2.42144e-8 1.78814e-7 1 6.057281 0 0 0 1</matrix>
+                  </node>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

@@ -75,6 +75,10 @@ extern SimpleMath::Vector3 state_origin_offset_for_blend;
 
 extern bool state_play_debug_animation;
 
+extern int state_play_debug_animation_pose;
+
+extern int state_play_debug_animation_index;
+
 extern EvePath g_EvePath;
 
 SimpleMath::Vector3 ProjectOnGround(const SimpleMath::Vector3 & a);
@@ -250,6 +254,16 @@ struct LeftShiftKey
 	static const DirectX::Keyboard::Keys Value = DirectX::Keyboard::Keys::LeftShift;
 };
 
+struct NumPad1Key
+{
+	static const DirectX::Keyboard::Keys Value = DirectX::Keyboard::Keys::NumPad1;
+};
+
+struct NumPad2Key
+{
+	static const DirectX::Keyboard::Keys Value = DirectX::Keyboard::Keys::NumPad2;
+};
+
 template<class Key>
 void IsKeyPressed(DirectX::Keyboard::State kb, std::function<void __cdecl()> OnPressed)
 {
@@ -308,7 +322,13 @@ void reсeiveKeyBoardInput(DirectX::Keyboard::State kb){
 		ShowJoints = !ShowJoints;
 	});
 	IsKeyPressed<F6Key>(kb, []{
-		state_play_debug_animation = true;
+		state_play_debug_animation = !state_play_debug_animation;;
+	});
+	IsKeyPressed<NumPad1Key>(kb, []{
+		state_play_debug_animation_pose = state_play_debug_animation_pose % 2 + 1;
+	});
+	IsKeyPressed<NumPad2Key>(kb, []{
+		state_play_debug_animation_index = state_play_debug_animation_index % 2 + 1;
 	});
 	IsKeyDown<F9Key>(kb, []{
 		CameraBoom += 0.1f;
@@ -367,6 +387,8 @@ SimpleMath::Vector3 EveHeadLocation = SimpleMath::Vector3::Zero;
 //	int objectType;
 //	physCollision(ca, worldDistance, T, impactPoint, impactNormal, objectName, objectType);
 //}
+AnimationBase* EdgeHorizontalJumpAnimation_TestPoses(AnimationBase * Animation, float DeltaTime, int PoseIndex);
+extern AnimationBase* DebugAnimation;
 
 void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 {
@@ -459,16 +481,34 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 	SimpleMath::Quaternion deltaRotation;
 	SimpleMath::Matrix FromModelSpaceToWorld;
 
-	EveAnimationGraph->advanse(simulationTime, deltaTranslation, deltaRotation);
-	Simulation::UpdateCapsuleRotation(GWorld.Capsules["eve"]);
-	fillSkeletonTransformFromJoint(EveAnimationGraph->getPlayingAnimation(), Eve->skelet);
-	calculateFramesTransformations(Eve->frame, Matrix::Identity);
+	if (!state_play_debug_animation)
+	{
+		EveAnimationGraph->advanse(simulationTime, deltaTranslation, deltaRotation);
+		Simulation::UpdateCapsuleRotation(GWorld.Capsules["eve"]);
+		fillSkeletonTransformFromJoint(EveAnimationGraph->getPlayingAnimation(), Eve->skelet);
+		calculateFramesTransformations(Eve->frame, Matrix::Identity);
+	}
+	else
+	{
+		AnimationBase* Anim;
+		{
+			char* Names[] = { "Left_Edge_Horizontal_Jump", "Right_Edge_Horizontal_Jump" };
+			Anim = EdgeHorizontalJumpAnimation_TestPoses(EveAnimationGraph->getAnimation(Names[state_play_debug_animation_index - 1]), simulationTime, state_play_debug_animation_pose - 1);
+		}
+		{
+			//DebugAnimation->advanse(simulationTime, deltaTranslation, deltaRotation);
+		}
+		fillSkeletonTransformFromJoint(Anim, Eve->skelet);
+		calculateFramesTransformations(Eve->frame, Matrix::Identity);
+		return;
+	}
 	
 	Simulation::Collision(GWorld.Capsules["eve"], deltaTranslation, deltaRotation);
 
 	Simulation::CharacterLerpRotation(simulationTime, "eve", "eveSkinnedModel");/* need update FromModelSpaceToWorld*/
 	Simulation::HoldHandWhileBlending("eve", "eveSkinnedModel");/* need update FromModelSpaceToWorld*/
 	Simulation::HoldHand("eve", "eveSkinnedModel");/* need update FromModelSpaceToWorld*/
+	Simulation::HoldToe("eve", "eveSkinnedModel"); 
 	Simulation::EnterIntoWater("eve", "eveSkinnedModel");/* need update FromModelSpaceToWorld*/
 
 	FromModelSpaceToWorld = Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
@@ -481,6 +521,14 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 	Simulation::FinishBallisticFly(GWorld.Capsules["eve"].getMatrix(), GWorld.Capsules["eve"].ab, GWorld.Capsules["eve"].r);
 	Simulation::AutoKneeling(FromModelSpaceToWorld);
 	UpdateEveCapsuleHeight(FromModelSpaceToWorld);
+
+	//// отладка
+	//if (std::string("ActionPose_Release_And_Go_Down") == EveAnimationGraph->getAnimationName())
+	//{
+	//	auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+	//	auto HandLocation = GetHandLocation(FromModelSpaceToWorld, "LeftHand");
+	//	sprintf(DebugBuffer, "Simulation::DebugAnimation HandLocation=(%f,%f,%f) deltaTranslation=(%f,%f,%f) deltaRotation=(%f,%f,%f)\n", HandLocation.x, HandLocation.y, HandLocation.z, deltaTranslation.x, deltaTranslation.y, deltaTranslation.z, deltaRotation.x, deltaRotation.y, deltaRotation.z, deltaRotation.w); Debug();
+	//}
 	//// вывести орентацию Hips и капсулы на экран
 	{
 		auto CapsulForwward_WS = GWorld.Capsules["eve"].getMatrix().Right();

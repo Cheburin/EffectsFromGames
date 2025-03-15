@@ -64,6 +64,10 @@ int state_hanging_Ledge_BoxIndex;
 
 bool state_play_debug_animation = false;
 
+int state_play_debug_animation_index = 1;
+
+int state_play_debug_animation_pose = 1;
+
 char* LeftHandName = "LeftHand";
 char* RightHandName = "RightHand";
 char* Hands[2] = { LeftHandName, RightHandName };
@@ -75,3 +79,7 @@ bool state_movement_is_obstructed = false;
 float state_CapsulAlfa_WS;
 
 float state_HipsAlfa_WS;
+
+bool state_hanging_Toe_activated;
+char* state_hanging_Toe_Name;
+SimpleMath::Vector3 state_hanging_Toe_Location;

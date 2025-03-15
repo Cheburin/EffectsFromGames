@@ -340,6 +340,40 @@ std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time)
 	return Anim->__AnimGetJointsByTime(Time);
 }
 
+std::vector<SimpleMath::Vector3>& __AnimGetMetaByTime(AnimationBase* Anim, float Time)
+{
+	static std::vector<SimpleMath::Vector3> Meta;
+	if (auto ret = dynamic_cast<Animation2*>(Anim))
+	{
+		Meta.resize(3);
+
+		for (int i = 0; i < 3; i++)
+		{
+			ret->Impl->resetMetaSampleIndex(i, ret->Impl->Rate);
+		}
+
+		auto SampleAtTime = min(ret->Impl->global_duration, max(0.f, Time));
+		SampleAtTime = ret->Impl->Rate * Time;
+		if (SampleAtTime < .0){
+			SampleAtTime = ret->Impl->local_duration + SampleAtTime;
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			ret->Impl->getMetaSample(i, SampleAtTime, Meta[i]);
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			ret->Impl->resetMetaSampleIndex(i, ret->Impl->Rate);
+		}
+
+		return Meta;
+	}
+	assert(false);
+	return Meta;
+}
+
 SimpleMath::Quaternion __AnimSubstructRootDeltaRotation(AnimationBase* Anim)
 {
 	if (auto ret = dynamic_cast<Animation2*>(Anim))
@@ -658,6 +692,15 @@ void extractAnimationMeta(Animation * anim, bool extractHeight, double duration,
 	ret->Impl->extractHandsToMeta1AndMeta2(64, 54, 31, getSkeletMatrix, calculateFramesTransformations);//findTransformationFrameByName(skelet->frame, "LeftHand"), findTransformationFrameByName(skelet->frame, "RightHand")
 }
 
+void AnimationSetJointT(Animation * anim, int JointNum, SimpleMath::Vector3 Translation)
+{
+	JointSQT joint;
+	auto ret = (Animation2*)anim;
+	ret->Impl->getJointSQT(JointNum, joint);
+	joint[2] = SimpleMath::Vector4(Translation.x, Translation.y, Translation.z, 0.f);
+	ret->Impl->setJoint(JointNum, joint);
+}
+
 float AnimationComputeLocalTime(Animation * anim, float time)
 {
 	auto ret = (Animation2*)anim;
@@ -693,22 +736,40 @@ void rotateHips(Animation * anim, SimpleMath::Quaternion Rotation)
 
 	auto ret = (Animation2*)anim;
 
-	auto& HipRotationSamples = ret->Impl->JointsRotationSamples[64].X;
-
-	auto& HipTranslationSamples = ret->Impl->JointsTranslationSamples[64].X;
-
-	for (int i = 0; i < HipTranslationSamples.size(); i++)
+	//множества поз из тайм линии
 	{
-		HipTranslationSamples[i].payload = SimpleMath::Vector4::Transform(HipTranslationSamples[i].payload, Rotation);
+		auto& HipTranslationSamples = ret->Impl->JointsTranslationSamples[64].X;
+
+		for (int i = 0; i < HipTranslationSamples.size(); i++)
+		{
+			HipTranslationSamples[i].payload = SimpleMath::Vector4::Transform(HipTranslationSamples[i].payload, Rotation);
+		}
+
+		auto& HipRotationSamples = ret->Impl->JointsRotationSamples[64].X;
+
+		for (int i = 0; i < HipRotationSamples.size(); i++)
+		{
+			SimpleMath::Quaternion Q1(Rotation);
+
+			SimpleMath::Quaternion Q2(HipRotationSamples[i].payload);
+
+			HipRotationSamples[i].payload = SimpleMath::Quaternion::Concatenate(Q1, Q2);
+		}
 	}
 
-	for (int i = 0; i < HipRotationSamples.size(); i++)
+	//когда просто одна поза
 	{
+		auto& HipTranslation = ret->Impl->JointsTranslationSamples[64].Y;
+
+		HipTranslation = SimpleMath::Vector4::Transform(HipTranslation, Rotation);
+
+		auto& HipRotation = ret->Impl->JointsRotationSamples[64].Y;
+
 		SimpleMath::Quaternion Q1(Rotation);
 
-		SimpleMath::Quaternion Q2(HipRotationSamples[i].payload);
+		SimpleMath::Quaternion Q2(HipRotation);
 
-		HipRotationSamples[i].payload = SimpleMath::Quaternion::Concatenate(Q1, Q2);
+		HipRotation = SimpleMath::Quaternion::Concatenate(Q1, Q2);
 	}
 }
 

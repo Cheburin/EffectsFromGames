@@ -63,6 +63,8 @@ struct AnimationGraph2 : IAnimationGraph2
 {
 	CharacterSkelet * skelet;
 
+	AnimationGraphNode * CurrentConditionNode;
+
 	bool bAnimationBlendActivated;
 	AnimationGraphNode * currentNode;
 	AnimationGraphNode * prevNode;
@@ -82,6 +84,13 @@ struct AnimationGraph2 : IAnimationGraph2
 		nodes.push_back(node);
 		animationToNode.insert(std::pair<AnimationBase *, AnimationGraphNode*>(animation, &nodes[nodes.size() - 1]));
 	};
+
+	AnimationGraph2Links createLinks(int Count, AnimationBase ** fromAnimations)
+	{
+		AnimationGraph2Links links = { this, Count, nullptr, nullptr };
+		for (int i = 0; i < Count; i++)	{ links._fromAnimation[i] = fromAnimations[i]; };
+		return links;
+	}
 
 	AnimationGraph2Link createLink(AnimationBase * fromAnimation)
 	{
@@ -202,10 +211,20 @@ struct AnimationGraph2 : IAnimationGraph2
 			return nullptr;
 		}
 	}
-	
+
 	bool IsBlendActivated()
 	{
 		return bAnimationBlendActivated;
+	}
+
+	char* GetCurrentConditionNodeName()
+	{
+		return CurrentConditionNode->name;
+	}
+
+	AnimationBase* GetCurrentConditionNodeAnimation()
+	{
+		return CurrentConditionNode->animation;
 	}
 protected:
 	//void generateTransitionBetweenAnimations()
@@ -233,6 +252,8 @@ protected:
 		{
 			auto & conditionNode = currentNode->nodes[i];
 
+			CurrentConditionNode = conditionNode.node;
+
 			if (conditionNode.condition())//currentNode->animation, currentNode->nodes[i].node->animation))
 			{
 				prevNode = currentNode;
@@ -256,6 +277,8 @@ protected:
 				transition_deltaTranslation = std::string(currentNode->name) == "LeftShimmy" ? false : transition_deltaTranslation;
 				transition_deltaTranslation = std::string(currentNode->name) == "JumpFromWall" ? false : transition_deltaTranslation;
 
+				conditionNode.node->animation->SetBlendTime(transition_time, transition_deltaTranslation);
+
 				if (transition_time == 0.0)
 				{
 					currentAnimation = currentNode->animation;
@@ -272,7 +295,7 @@ protected:
 
 					char buffer[1024]; sprintf(buffer, "AnimationGraph resolveNode ----- %s %s\n", prevNode->name, currentNode->name); OutputDebugStringA(buffer);
 				}
-				else if (!bAnimationBlendActivated)
+				else if (!bAnimationBlendActivated && prevNode != currentNode)
 				{
 					bAnimationBlendActivated = true;
 
@@ -297,11 +320,14 @@ protected:
 					);
 					Simulation::UpdateCapsuleRotation_ApplyTargetRootDeltaRotation(currentNode->name, prevNode->name, transition_time);
 				}
-				else if (bAnimationBlendActivated)
+				else if (bAnimationBlendActivated || prevNode == currentNode)
 				{
 					// sorry, wait until transaction completed
 					// but now we try it don't wait until transaction completed
-					
+					bAnimationBlendActivated = true; //из цыклов самих на себя повторим установки
+
+					currentAnimation = animationBlend;
+
 					char buffer[1024]; sprintf(buffer, "AnimationGraph resolveNode(*) ----- %s %s\n", prevNode->name, currentNode->name); OutputDebugStringA(buffer);
 
 					blendedAnimation2->setPlaying(false);
