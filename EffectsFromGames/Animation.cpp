@@ -71,6 +71,8 @@ struct Animation2 : public Animation
 
 		Impl->loop_counter = 0;
 
+		Impl->prev_loop_counter = 0;
+
 		Impl->playing = false;
 
 		Impl->prev_translation = Impl->Rate<0.f ? Impl->end_translation : Impl->begin_translation;
@@ -143,7 +145,7 @@ struct Animation2 : public Animation
 
 	bool IsLoop()
 	{
-		return Impl->prev_local_time == 0.0 || Impl->loop_counter > 0;
+		return Impl->prev_local_time == 0.0 || Impl->prev_loop_counter > 0;
 	}
 
 	bool isPlaying()
@@ -219,6 +221,7 @@ struct Animation2 : public Animation
 	{
 		Impl->prev_frameNo = Impl->frameNo;
 		Impl->prev_local_time = Impl->local_time;
+		Impl->prev_loop_counter = Impl->loop_counter;
 
 		for (int i = 0; i < Impl->jointsCount; i++)
 		{
@@ -289,6 +292,19 @@ struct Animation2 : public Animation
 			}
 		}
 	};
+
+	void setCurrentAnimationTime(float global_time)
+	{
+		Impl->global_time = global_time;
+		computeLocalTime();
+		preComputeRange(Impl->Rate * 1.f);
+
+		{
+			auto TempCurrentMetaChannels = CurrentMetaChannels;
+			Impl->getMetaSample(0, Impl->local_time, TempCurrentMetaChannels[0]);
+			Impl->prev_translation = TempCurrentMetaChannels[0];
+		}
+	}
 
 };
 

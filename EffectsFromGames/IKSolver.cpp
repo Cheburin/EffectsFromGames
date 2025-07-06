@@ -117,6 +117,14 @@ void JointHelpers::ChainToAnim(const std::vector<int> & chain, std::vector<Joint
 	}
 }
 
+void JointHelpers::ChainToAnim(int StartIndex, int FinishIndex, const std::vector<int> & chain, std::vector<JointSQT> & Joints, AnimationBase * Anim)
+{
+	for (int i = StartIndex; i < FinishIndex + 1; i++)
+	{
+		Anim->CurrentJoints[chain[i]] = Joints[i];
+	}
+}
+
 void JointHelpers::localToModel(int Count, std::vector<JointSQT> & Joints)
 {
 	JointSQT & Joint = Joints[0];
@@ -147,6 +155,50 @@ void JointHelpers::modelToLocal(int Count, std::vector<JointSQT> & Joints)
 	SimpleMath::Quaternion Orientation1 = orient(Joint);
 
 	for (int i = 1; i < Count; i++)
+	{
+		JointSQT & Joint = Joints[i];
+
+		SimpleMath::Vector3 Position2 = pos(Joint);
+		SimpleMath::Quaternion Orientation2 = orient(Joint);
+
+		pos(Joint) = SimpleMath::Vector3::Transform(Position2 - Position1, inverse(Orientation1));
+		orient(Joint) = SimpleMath::Quaternion::Concatenate(inverse(Orientation1), Orientation2); /// check order
+
+		Position1 = Position2;
+		Orientation1 = Orientation2;
+	}
+}
+
+void JointHelpers::localToModel(int StartIndex, int FinishIndex, std::vector<JointSQT> & Joints)
+{
+	JointSQT & Joint = Joints[StartIndex];
+
+	SimpleMath::Vector3 Position1 = pos(Joint);
+	SimpleMath::Quaternion Orientation1 = orient(Joint);
+
+	for (int i = StartIndex + 1; i < FinishIndex + 1; i++)
+	{
+		JointSQT & Joint = Joints[i];
+
+		SimpleMath::Vector3 Position2 = Position1 + SimpleMath::Vector3::Transform(pos(Joint), Orientation1);
+		SimpleMath::Quaternion Orientation2 = SimpleMath::Quaternion::Concatenate(Orientation1, orient(Joint)); /// check order
+
+		pos(Joint) = Position2;
+		orient(Joint) = Orientation2;
+
+		Position1 = Position2;
+		Orientation1 = Orientation2;
+	}
+}
+
+void JointHelpers::modelToLocal(int StartIndex, int FinishIndex, std::vector<JointSQT> & Joints)
+{
+	JointSQT & Joint = Joints[StartIndex];
+
+	SimpleMath::Vector3 Position1 = pos(Joint);
+	SimpleMath::Quaternion Orientation1 = orient(Joint);
+
+	for (int i = StartIndex + 1; i < FinishIndex + 1; i++)
 	{
 		JointSQT & Joint = Joints[i];
 
@@ -233,39 +285,49 @@ SimpleMath::Vector3 JointHelpers::transformFromFirstToLastJointFrame(const std::
 
 struct FABRIK : public IKSolverInterface
 {
-	int chain0Size;
 	float sum_distantce0;
-	std::vector<float> distantce0;
-	std::vector<JointSQT> chain0;
+	std::vector<std::vector<float>> distantces;
+	std::vector<std::vector<JointSQT>> chains;
 
 	~FABRIK(){
 	}
 
 	void init(Character * character)
 	{
-		chain0Size = 0;
-		chain0.resize(1024);
-		distantce0.resize(1024);
+		chains.resize(4);
+		chains[0].resize(1024);
+		chains[1].resize(1024);
+		chains[2].resize(1024);
+		chains[3].resize(1024);
+
+		distantces.resize(4);
+		distantces[0].resize(1024);
+		distantces[1].resize(1024);
+		distantces[2].resize(1024);
+		distantces[3].resize(1024);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	void getDistantce0()
+	void getDistantce(int index, int ChainStart, int ChainFinish)
 	{
 		sum_distantce0 = 0.0f;
 
-		JointSQT & Joint = chain0[0];
+		auto& chain = chains[index];
+		auto& distantce = distantces[index];
+
+		JointSQT & Joint = chain[ChainStart];
 
 		SimpleMath::Vector3 Position1 = pos(Joint);
 
-		for (int i = 1; i < chain0Size; i++)
+		for (int i = ChainStart + 1; i < ChainFinish + 1; i++)
 		{
-			JointSQT & Joint = chain0[i];
+			JointSQT & Joint = chain[i];
 
 			SimpleMath::Vector3 Position2 = pos(Joint);
 
 			float Dist = (Position2 - Position1).Length();
-			distantce0[i-1] = Dist;
+			distantce[i - 1] = Dist;
 			sum_distantce0 += Dist;
 
 			Position1 = Position2;
@@ -276,26 +338,27 @@ struct FABRIK : public IKSolverInterface
 	
 	std::vector<JointSQT>& chainRef(int chain)
 	{
-		return chain0;
+		return chains[chain];
 	}
 
-	void setChainSize(int chain, int size)
-	{
-		chain0Size = size;
-	}
+	//void setChainSize(int chain, int size)
+	//{
+	//	chain0Size = size;
+	//}
 
-	void solve(int ChainSize, SimpleMath::Vector3 target, int total_iter, float epsilon)
+	void solve(int index, int ChainStart, int ChainFinish, SimpleMath::Vector3 target, int total_iter, float epsilon)
 	{
-		chain0Size = ChainSize;
-
-		getDistantce0();
+		getDistantce(index, ChainStart, ChainFinish);
 
 		////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		const int chainN = chain0Size - 1;
+		auto& chain = chains[index];
+		auto& distantce = distantces[index];
 
-		auto & Joint0 = chain0[0];
-		auto & JointN = chain0[chainN];
+		////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		auto & Joint0 = chain[ChainStart];
+		auto & JointN = chain[ChainFinish];
 
 		SimpleMath::Vector3 base = pos(Joint0);
 
@@ -312,11 +375,11 @@ struct FABRIK : public IKSolverInterface
 
 			SimpleMath::Vector3 prev = pos(Joint0);
 
-			for (int i = 0; i < chainN; i++)
+			for (int i = ChainStart; i < ChainFinish; i++)
 			{
-				auto & Joint1 = chain0[i];
-				auto & Joint2 = chain0[i + 1];
-				auto & Dist = distantce0[i];
+				auto & Joint1 = chain[i];
+				auto & Joint2 = chain[i + 1];
+				auto & Dist = distantce[i];
 
 				auto oldOrientDir = pos(Joint2) - prev;
 				auto newOrientDir = target - pos(Joint1);
@@ -342,11 +405,11 @@ struct FABRIK : public IKSolverInterface
 				prev = pos(JointN);
 				pos(JointN) = target;
 
-				for (int i = chainN - 1; i >= 0; i--)
+				for (int i = ChainFinish - 1; i >= ChainStart; i--)
 				{
-					auto & Joint1 = chain0[i];
-					auto & Joint2 = chain0[i + 1];
-					auto & Dist = distantce0[i];
+					auto & Joint1 = chain[i];
+					auto & Joint2 = chain[i + 1];
+					auto & Dist = distantce[i];
 
 					auto oldOrientDir = prev - pos(Joint1);
 					auto newOrientDir = pos(Joint2) - pos(Joint1);
@@ -363,11 +426,11 @@ struct FABRIK : public IKSolverInterface
 				prev = pos(Joint0);
 				pos(Joint0) = base;
 
-				for (int i = 0; i < chainN; i++)
+				for (int i = ChainStart; i < ChainFinish; i++)
 				{
-					auto & Joint1 = chain0[i];
-					auto & Joint2 = chain0[i + 1];
-					auto & Dist = distantce0[i];
+					auto & Joint1 = chain[i];
+					auto & Joint2 = chain[i + 1];
+					auto & Dist = distantce[i];
 
 					auto oldOrientDir = pos(Joint2) - prev;
 					auto newOrientDir = pos(Joint2) - pos(Joint1);

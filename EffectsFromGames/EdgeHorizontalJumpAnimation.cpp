@@ -29,7 +29,7 @@ void extractAnimationMeta(Animation * anim, bool extractHeight, double duration,
 void rotateHips(Animation *, SimpleMath::Quaternion);
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 std::vector<SimpleMath::Vector3>& __AnimGetMetaByTime(AnimationBase* Anim, float Time);
-void GetBallisticTrajectoryParams(const float Velocity, const SimpleMath::Matrix& FromModelSpaceToWorld, const SimpleMath::Vector3& forward, const SimpleMath::Vector3& Start, const SimpleMath::Vector3& Finish, SimpleMath::Vector3 & ballisticG, SimpleMath::Vector3 & ballisticInitialVelocity);
+void GetBallisticTrajectoryParams(const float Velocity, const SimpleMath::Vector3& forward, const SimpleMath::Vector3& Start, const SimpleMath::Vector3& Finish, SimpleMath::Vector3 & ballisticG, SimpleMath::Vector3 & ballisticInitialVelocity);
 std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index, float Time = 0);
 
 void GetEdgeHorizontalJumpAnimation_ProcessBallisticTrajectory(Animation* __Animation, bool bLeft);
@@ -52,14 +52,37 @@ SimpleMath::Quaternion Inverse(SimpleMath::Quaternion PoseAbsoluteYaw)
 	return Ret;
 }
 
+SimpleMath::Vector3 GetEdgeHorizontalJumpAnimation_vec4ToVec3(SimpleMath::Vector4 v4)
+{
+	return SimpleMath::Vector3(v4.x, v4.y, v4.z);
+}
+
+float GetEdgeHorizontalJumpAnimation_sign(const float& arg){
+	return  arg < 0.f ? -1.f : 1.f;
+}
+
+SimpleMath::Vector3 GetEdgeHorizontalJumpAnimation_GetHandLocation(bool IsLeft){
+	std::vector<JointSQT> ChainsJoints;
+	ChainsJoints.resize(256);
+
+	auto HandChain = jointsRefsChains[IsLeft ? 0 : 1];
+	JointHelpers::AnimToChain(HandChain, EveAnimationGraph->getPlayingAnimation(), ChainsJoints);
+	JointHelpers::localToModel(HandChain.size(), ChainsJoints);
+
+	auto BaseHandLocation = SimpleMath::Vector3::Transform(0.01f*GetEdgeHorizontalJumpAnimation_vec4ToVec3(ChainsJoints[HandChain.size() - 1][2]), SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix());
+	
+	sprintf(DebugBuffer, "GetEdgeHorizontalJumpAnimation_GetHandLocation %f %f %f\n", BaseHandLocation.x, BaseHandLocation.y, BaseHandLocation.z); Debug();
+
+	return BaseHandLocation;
+}
+
 struct EdgeHorizontalJumpAnimation : public Animation
 {
 	AnimationRep* Impl;
 
 	static const int PoseCount = 2;
 
-	double BallisticTime;
-	bool evalBallisticPathState;
+	double CurrentTime;
 	int CurrentPoseIndex;
 	Animation* CurrentPose;
 
@@ -72,6 +95,7 @@ struct EdgeHorizontalJumpAnimation : public Animation
 	int HandChain_ArmIndex;
 	int HandChain_HandIndex;
 	std::vector<int> HandChain;
+	bool bLeft;
 
 	Animation* Poses[PoseCount];
 	SimpleMath::Quaternion PosesYaws[PoseCount];
@@ -88,9 +112,11 @@ struct EdgeHorizontalJumpAnimation : public Animation
 	SimpleMath::Quaternion BaseCapsuleOrientation;
 	SimpleMath::Quaternion DeltaHipsTargetRotation;
 	SimpleMath::Vector3    BaseHandLocation;
+	SimpleMath::Vector3    BaseToeLocation;
 
-	SimpleMath::Vector3    ref_capsule_base;
-	SimpleMath::Vector3    ref_hanging_Toe_Location;
+	bool BallisticState_Activated;
+	SimpleMath::Vector3    BallisticState_start_capsule_location;
+	double				   BallisticState_start_time;
 
 	EdgeHorizontalJumpAnimation()
 	{
@@ -111,44 +137,73 @@ struct EdgeHorizontalJumpAnimation : public Animation
 		return Time * ballisticInitialVelocity + 0.5f * (Time * Time) * ballisticG;
 	}
 
+	void PostActions()
+	{ 
+		auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+		auto worldBackSide = state_hanging_Ledge_Box.worldBackSide;
+		worldBackSide.Normalize();
+
+		if (!BallisticState_Activated)
+		{
+			if (CurrentTime < 0.05f) //0.07
+			{
+				GWorld.Capsules["eve"].origin += (BaseToeLocation - GetHandLocation(FromModelSpaceToWorld, state_hanging_Toe_Name));
+
+				BallisticState_start_capsule_location = GWorld.Capsules["eve"].origin;
+
+			}
+			else
+			{
+				GWorld.Capsules["eve"].origin += (BaseToeLocation - GetHandLocation(FromModelSpaceToWorld, state_hanging_Toe_Name));
+
+				GWorld.Capsules["eve"].origin += worldBackSide.Dot(BallisticState_start_capsule_location - GWorld.Capsules["eve"].origin) * worldBackSide;
+			}
+		}
+
+		if (!BallisticState_Activated)
+		{
+			//auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+			//auto Toe = GetHandLocation(FromModelSpaceToWorld, state_hanging_Toe_Name);
+			//auto worldBackSide = state_hanging_Ledge_Box.worldBackSide;
+			//worldBackSide.Normalize();
+			//sprintf(DebugBuffer, "PostBlendActions (%d) Capsule==(%f %f %f)\n", CurrentTime < 0.25f, GWorld.Capsules["eve"].origin.x, GWorld.Capsules["eve"].origin.y, GWorld.Capsules["eve"].origin.z); Debug();// , Toe.x, Toe.y, Toe.z, worldBackSide.x, worldBackSide.y, worldBackSide.z);;  Toe==(%f %f %f) worldBackSide ==(%f %f %f)
+		}
+
+	};
+
 	SimpleMath::Vector3 evalBallisticPath()
 	{
-		if (evalBallisticPathState)
+		if (BallisticState_Activated)
 		{
+			//GetEdgeHorizontalJumpAnimation_GetHandLocation(bLeft);
+
 			//sprintf(DebugBuffer, "evalBallisticPath(2) %f %f %f\n", GWorld.Capsules["eve"].origin.x, GWorld.Capsules["eve"].origin.y, GWorld.Capsules["eve"].origin.z); Debug();
 
 			ballisticPrevLoc = ballisticNextLoc;
 
-			ballisticNextLoc = BallisticTime * ballisticInitialVelocity + 0.5f * (BallisticTime * BallisticTime) * ballisticG;
+			auto evalBallisticState_time = (CurrentTime - BallisticState_start_time);
+
+			ballisticNextLoc = evalBallisticState_time * ballisticInitialVelocity + 0.5f * (evalBallisticState_time * evalBallisticState_time) * ballisticG;
 
 			return ballisticNextLoc - ballisticPrevLoc;
 		}
-		else if (state_hanging_Toe_activated && CurrentPoseIndex == 0 && BallisticTime < 0.25f) //0.07
+		//else if (state_hanging_Toe_activated && CurrentPoseIndex == 0 && CurrentTime < 0.25f) //0.07
+		//{
+		//}
+		//else if ((state_hanging_Toe_activated && CurrentPoseIndex == 0 && 0.25f < CurrentTime) || (state_hanging_Toe_activated && CurrentPoseIndex == 1 && CurrentTime < 0.45f)) //0.07
+		//{
+		//}
+		else if (0.25f < CurrentTime)
 		{
-			ref_capsule_base = GWorld.Capsules["eve"].origin;
-		}
-		else if ((state_hanging_Toe_activated && CurrentPoseIndex == 0 && 0.25f < BallisticTime) || (state_hanging_Toe_activated && CurrentPoseIndex == 1 && BallisticTime < 0.45f)) //0.07
-		{
-			auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+			BallisticState_start_time = CurrentTime;
 
-			auto NewBase = GWorld.Capsules["eve"].origin + (ref_hanging_Toe_Location - GetHandLocation(FromModelSpaceToWorld, state_hanging_Toe_Name));
+			BallisticState_Activated = true;
 
-			auto worldBackSide = state_hanging_Ledge_Box.worldBackSide;
-			worldBackSide.Normalize();
-
-			state_hanging_Toe_Location = ref_hanging_Toe_Location + worldBackSide.Dot(ref_capsule_base - NewBase) * worldBackSide;
-
-			//sprintf(DebugBuffer, "evalBallisticPath(1) %f %f %f\n", GWorld.Capsules["eve"].origin.x, GWorld.Capsules["eve"].origin.y, GWorld.Capsules["eve"].origin.z); Debug();
-		}
-		else if (CurrentPoseIndex == 1 && 0.45f < BallisticTime)
-		{
-			BallisticTime = 0.0;
-			evalBallisticPathState = true;
 			ballisticNextLoc = SimpleMath::Vector3::Zero;
 
 			state_hanging_Toe_activated = false;
 
-			GetEdgeHorizontalJumpAnimation_ProcessBallisticTrajectory(this, true);
+			GetEdgeHorizontalJumpAnimation_ProcessBallisticTrajectory(this, bLeft);
 		}
 		return SimpleMath::Vector3::Zero;
 	}
@@ -172,7 +227,8 @@ struct EdgeHorizontalJumpAnimation : public Animation
 
 		Impl->frameNo += 1;
 		Impl->global_time += elapsedTime;
-		BallisticTime += elapsedTime;
+
+		CurrentTime += elapsedTime;
 	}
 
 	std::vector<JointSQT>& __AnimGetJointsByTime(float Time)
@@ -232,39 +288,29 @@ struct EdgeHorizontalJumpAnimation : public Animation
 
 	void resetPosesStates()
 	{
-		ref_hanging_Toe_Location = state_hanging_Toe_Location;
+		sprintf(DebugBuffer, "EdgeHorizontalJumpAnimation::resetPosesStates"); Debug();
 
-		BallisticTime = 0.0;
+		CurrentTime = 0.0;
 		CurrentPoseIndex = 0;
-		evalBallisticPathState = false;
+
+		BallisticState_Activated = false;
 		
 		DeltaHipsTargetRotation = InitialPoseYaw;
 		for (int i = 0; i < EdgeHorizontalJumpAnimation::PoseCount; i++)
 		{
 			DeltaHipsTargetRotation = SimpleMath::Quaternion::Concatenate(PosesYaws[i], DeltaHipsTargetRotation);
 		}
+
 		BaseCapsuleOrientation = GWorld.Capsules["eve"].orientation;
-		{
-			std::vector<JointSQT> ChainsJoints;
-			ChainsJoints.resize(256);
+		BaseHandLocation = GetEdgeHorizontalJumpAnimation_GetHandLocation(bLeft);
+		BaseToeLocation = state_hanging_Toe_Location;
 
-			JointHelpers::AnimToChain(HandChain, EveAnimationGraph->getPlayingAnimation(), ChainsJoints);
-			JointHelpers::localToModel(HandChain_Count, ChainsJoints);
-
-			auto __Hand = ChainsJoints[HandChain_HandIndex][2];
-			auto Hand = 0.01f*SimpleMath::Vector3(__Hand.x, __Hand.y, __Hand.z);
-			BaseHandLocation = SimpleMath::Vector3::Transform(Hand, SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix());
-
-			auto Temp = GetHandLocation(SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix(), "RightHand");
-			sprintf(DebugBuffer, "EdgeHorizontalJumpAnimation::resetPosesStates %f %f %f %f %f %f\n", BaseHandLocation.x, BaseHandLocation.y, BaseHandLocation.z, Temp.x, Temp.y, Temp.z); Debug();
-		}
-
-		auto h0 = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[64][2];
-		auto h1 = ::__AnimGetJointsByTime(Poses[0], .0f)[64][2];
-		auto h2 = ::__AnimGetJointsByTime(Poses[1], .0f)[64][2];
-		sprintf(DebugBuffer, "EdgeHorizontalJumpAnimation::resetPosesStates h0 %f %f %f\n", h0.x, h0.y, h0.z); Debug();
-		sprintf(DebugBuffer, "EdgeHorizontalJumpAnimation::resetPosesStates h1 %f %f %f\n", h1.x, h1.y, h1.z); Debug();
-		sprintf(DebugBuffer, "EdgeHorizontalJumpAnimation::resetPosesStates h2 %f %f %f\n", h2.x, h2.y, h2.z); Debug();
+		//auto h0 = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[64][2];
+		//auto h1 = ::__AnimGetJointsByTime(Poses[0], .0f)[64][2];
+		//auto h2 = ::__AnimGetJointsByTime(Poses[1], .0f)[64][2];
+		//sprintf(DebugBuffer, "EdgeHorizontalJumpAnimation::resetPosesStates h0 %f %f %f\n", h0.x, h0.y, h0.z); Debug();
+		//sprintf(DebugBuffer, "EdgeHorizontalJumpAnimation::resetPosesStates h1 %f %f %f\n", h1.x, h1.y, h1.z); Debug();
+		//sprintf(DebugBuffer, "EdgeHorizontalJumpAnimation::resetPosesStates h2 %f %f %f\n", h2.x, h2.y, h2.z); Debug();
 	}
 
 	void NextPose()
@@ -335,7 +381,7 @@ Animation* CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, Simpl
 		IsLeft ? "Media\\Animations\\Edge\\Edge_Left_Horizontal_Jump_Pose_2.dae" : "Media\\Animations\\Edge\\Edge_Right_Horizontal_Jump_Pose_2.dae"
 	};
 	float BlendsTimes[EdgeHorizontalJumpAnimation::PoseCount] = {
-		0.4f,//0.2f,
+		0.2f,//0.2f,
 		0.2f//0.1f//,
 		//0.1f 
 	};
@@ -383,6 +429,7 @@ Animation* CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, Simpl
 
 	Anim->InitialPoseYaw = PoseYaw;
 
+	Anim->bLeft = IsLeft;
 	Anim->HandChain = jointsRefsChains[IsLeft ? 0 : 1];
 	Anim->HandChain_Count = Anim->HandChain.size();
 	Anim->HandChain_ArmIndex = Anim->HandChain_Count - 3;
@@ -455,15 +502,6 @@ bool GetEdgeHorizontalJumpAnimation_FindEdgeFinishLocation(SimpleMath::Vector3 D
 	return Found;
 }
 
-SimpleMath::Vector3 GetEdgeHorizontalJumpAnimation_vec4ToVec3(SimpleMath::Vector4 v4)
-{
-	return SimpleMath::Vector3(v4.x, v4.y, v4.z);
-}
-
-float GetEdgeHorizontalJumpAnimation_sign(const float& arg){
-	return  arg < 0.f ? -1.f : 1.f;
-}
-
 void GetEdgeHorizontalJumpAnimation_RotateChain(std::vector<JointSQT>& ChainJoints, SimpleMath::Quaternion DeltaRot, int ChainJoints_OriginIndex, int ChainJoints_Count)
 {
 	int i = ChainJoints_OriginIndex;
@@ -509,6 +547,8 @@ SimpleMath::Quaternion GetEdgeHorizontalJumpAnimation_GetRotation(SimpleMath::Ve
 	float DeltaAngle = 0.f;
 	SimpleMath::Quaternion DeltaRotation = SimpleMath::Quaternion::Identity;
 	{
+		From.Normalize();
+		To.Normalize();
 		DeltaAngle = atan2(From.Cross(To).Length(), From.Dot(To));
 		DeltaRotation = SimpleMath::Quaternion::CreateFromAxisAngle(From.Cross(To), DeltaAngle);
 	}
@@ -546,12 +586,18 @@ SimpleMath::Vector3 GetEdgeHorizontalJumpAnimation_ExtractStartLocation(EdgeHori
 
 	const auto NewRot = ChainsJoints[Anim->HandChain_ArmIndex][1];
 	Anim->Poses[1]->TransformJointSamples(
-		33,
+		Anim->bLeft?33:56,
 		"rotation",
 		[NewRot](SimpleMath::Vector4 v){
 			return NewRot;
 		}
 	);
+
+	if (Anim->CurrentPoseIndex == 1)
+	{
+		Anim->CurrentJoints = Anim->CurrentPoseJoints = ::__AnimGetJointsByTime(Anim->CurrentPose, .0f);
+		Anim->CurrentMetaChannels = Anim->CurrentPoseMetaChannels = ::__AnimGetMetaByTime(Anim->CurrentPose, .0f);
+	}
 
 	return SimpleMath::Vector3::Transform(HandLS, FromLSToWS);
 	//return GetHandLocation(FromModelSpaceToWorld, "Hips");
@@ -569,6 +615,8 @@ SimpleMath::Vector3 GetEdgeHorizontalJumpAnimation_ProjectFinishLocation(SimpleM
 
 void GetEdgeHorizontalJumpAnimation_ProcessBallisticTrajectory(Animation* __Animation, bool bLeft)
 {
+	sprintf(DebugBuffer, "GetEdgeHorizontalJumpAnimation_ProcessBallisticTrajectory\n"); Debug();
+
 	auto Anim = ((EdgeHorizontalJumpAnimation*)__Animation);
 
 	auto LedgeOrigin = state_hanging_Ledge_Box.origin;
@@ -585,7 +633,7 @@ void GetEdgeHorizontalJumpAnimation_ProcessBallisticTrajectory(Animation* __Anim
 	 
 	auto BallisticFinish = GetEdgeHorizontalJumpAnimation_ProjectFinishLocation(EdgeFinishLocation, BallisticStart);
 	 
-	GetBallisticTrajectoryParams(7.5f, SimpleMath::Matrix::Identity, BallisticForward, BallisticStart, BallisticFinish, Anim->ballisticG, Anim->ballisticInitialVelocity);
+	GetBallisticTrajectoryParams(7.5f, BallisticForward, BallisticStart, BallisticFinish, Anim->ballisticG, Anim->ballisticInitialVelocity);
 }
 
 bool GetEdgeHorizontalJumpAnimation_NextPose(IAnimationGraph2 * Graph, Animation* __Animation, bool bStarting)

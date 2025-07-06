@@ -825,6 +825,8 @@ Animation * CreateJumpFromWallAnimation(std::map<std::string, unsigned int> & Fr
 
 Animation * CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, SimpleMath::Quaternion PoseYaw, std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
 
+Animation* CreateBracedHangHopUpAnimation(std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
+
 extern char DebugBuffer[1024];
 extern World GWorld;
 void Debug();
@@ -841,6 +843,8 @@ extern bool state_movement_is_obstructed;
 extern Box state_hanging_Ledge_Box;
 extern SimpleMath::Vector3 cameraForward;
 
+extern IClimbingPathHelper* ClimbingPathHelper;
+
 Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 SimpleMath::Quaternion __AnimSubstructRootDeltaRotation(AnimationBase* Anim);
@@ -853,6 +857,8 @@ void AnimationSetJointT(Animation * anim, int JointNum, SimpleMath::Vector3 Tran
 int IsShimmyAnimationEdgeBreakOff(AnimationBase *animation);
 void FixAnimJointsOrientation(Animation* Anim, Animation* RefAnim);
 void rotateHips(Animation *, SimpleMath::Quaternion);
+
+void BracedHangHopUpAnimation_SetInitialHandsLocations(Animation* __Animation);
 
 AnimationBase** PackGroup(AnimationBase * a1, AnimationBase * a2)
 {
@@ -912,17 +918,7 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	extractAnimationMeta(Climb, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
 	Graph->registerAnimation("climbing", Climb);
 
-	auto bracedHangHopUpAnimation = loadAnimation("Media\\Animations\\BracedHangHopUp.dae", characterSkelet->FramesNamesIndex);
-	bracedHangHopUpAnimation->setRate(1.0 / 2.0f);
-	bracedHangHopUpAnimation->setLooping(false);
-	//bracedHangHopUpAnimation->AddOffset(-gravityInEveSystemCoordinates);
-	extractAnimationMeta(bracedHangHopUpAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
-	bracedHangHopUpAnimation->TransformMetaSamples(
-		0,
-		[](SimpleMath::Vector4 v){
-		v = SimpleMath::Vector4(v.x, 2.0f*v.y, v.z, 1.0f);
-		return v;
-	});
+	auto bracedHangHopUpAnimation = CreateBracedHangHopUpAnimation(characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
 	Graph->registerAnimation("braced_hang_hop_up", bracedHangHopUpAnimation);
 
 	auto fallingIdleAnimation = loadAnimation("Media\\Animations\\FallingIdle.dae", characterSkelet->FramesNamesIndex);
@@ -1031,12 +1027,17 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	auto Right_Edge_Horizontal_Jump = CreateEdgeHorizontalJumpAnimation(false, Climb_Look_Idle_R, Climb_Look_Idle_R_Delta_Rotation, characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
 	Graph->registerAnimation("Right_Edge_Horizontal_Jump", Right_Edge_Horizontal_Jump);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	void CreateLadderAnimationAndRegisterIntoAnimationGraph(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet, TransformationFrame * frame);
+	CreateLadderAnimationAndRegisterIntoAnimationGraph(Graph, characterSkelet, frame);
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	Climb_Look_Idle_R->subscribe("onPlayingChanged", [RightShimmy](bool state){
 		if (state)
 		{
 			auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
 
-			state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName);
+			ClimbingPathHelper->LedgeToSegments();
+
+			state_hanging_Hand_Location = ClimbingPathHelper->ToSegmentBasis(GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName), ClimbingPathHelper->GetCurrentSegmentIndex());
 		}
 	});
 	Climb_Look_Idle_L->subscribe("onPlayingChanged", [LeftShimmy](bool state){
@@ -1044,7 +1045,9 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		{
 			auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
 
-			state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = RightHandName);
+			ClimbingPathHelper->LedgeToSegments();
+
+			state_hanging_Hand_Location = ClimbingPathHelper->ToSegmentBasis(GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = RightHandName), ClimbingPathHelper->GetCurrentSegmentIndex());
 		}
 	});
 	RightShimmy->subscribe("onPlayingChanged", [RightShimmy](bool state){
@@ -1107,6 +1110,12 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	});
 	JumpFromWall->subscribe("onPlayingChanged", [](bool state){
 		state_jump_from_wall = state;
+		if (state)
+		{
+			start_hanging_Ledge_Name = state_hanging_Ledge_Name;
+			start_hanging_Ledge_BoxIndex = state_hanging_Ledge_BoxIndex;
+			//state_hanging = false;
+		}
 	});
 	jumpUpAnimation->subscribe("onPlayingChanged", [](bool state){
 		state_jump = state;
@@ -1151,15 +1160,16 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			//state_prevent_hanging = true;
 		}
 	});
+
 	//static bool Jump_To_Hang_With_Leg_Playing = false;
 	//Jump_To_Hang_With_Leg->subscribe("onPlayingChanged", [](bool state){
 	//	Jump_To_Hang_With_Leg_Playing = state;
 	//});
 	
-	static bool Jump_To_Hang_WithOut_Leg_Playing = false;
-	Jump_To_Hang_WithOut_Leg->subscribe("onPlayingChanged", [](bool state){
-		Jump_To_Hang_WithOut_Leg_Playing = state;
-	});
+	//static bool Jump_To_Hang_WithOut_Leg_Playing = false;
+	//Jump_To_Hang_WithOut_Leg->subscribe("onPlayingChanged", [](bool state){
+	//	Jump_To_Hang_WithOut_Leg_Playing = state;
+	//});
 
 	static bool ready_hanging_on_wall = false;
 	static bool ready_for_moving_from_falling_and_hang_on = false;
@@ -1273,7 +1283,14 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 
 	Graph->createLink(bracedHangHopUpAnimation)
 		.setEndPoint(Hanging_Idle_With_Leg)
-		.reverse([](){ return consumeInputJump(); })
+		.reverse([bracedHangHopUpAnimation](){
+			if (consumeInputJump())
+			{
+				BracedHangHopUpAnimation_SetInitialHandsLocations(bracedHangHopUpAnimation);
+				return true;
+			}
+			return false;
+		})
 		;
 
 	Graph->createLink(Kneeling)
@@ -1387,8 +1404,8 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		.reverse([RightShimmy](){ return fabs(input_move.y) == 0.0f && GetShimmyAnimationKind(RightShimmy) == 1; })
 		.setEndPoint(LeftShimmy)
 		.reverse([LeftShimmy](){ return fabs(input_move.y) == 0.0f && GetShimmyAnimationKind(LeftShimmy) == 1; })
-		.setEndPoint(Jump_To_Hang_WithOut_Leg)
-		.reverse([](){ return !Jump_To_Hang_WithOut_Leg_Playing; })
+		//.setEndPoint(Jump_To_Hang_WithOut_Leg)
+		//.reverse([Graph](){ return !Graph->getAnimationBlend()->isPlaying(); })
 		;
 
 	Graph->createLinks(2, PackGroup(Left_Edge_Horizontal_Jump, Right_Edge_Horizontal_Jump))
@@ -1401,7 +1418,7 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 				//отладка
 				//{
 					extern bool simulation_state_manual_control;
-					simulation_state_manual_control = true;
+					//simulation_state_manual_control = true;
 				//}
 
 				state_jump = true;
@@ -1437,8 +1454,9 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			auto bRet = start_hanging_Ledge_Name != state_hanging_Ledge_Name || start_hanging_Ledge_BoxIndex != state_hanging_Ledge_BoxIndex;
 			if (state_hanging && bRet)
 			{
-				auto Temp = GetHandLocation(SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix(), "RightHand");
-				sprintf(DebugBuffer, "Left_Edge_Horizontal_Jump -> Jump_To_Hang_With_Leg %f %f %f\n", Temp.x, Temp.y, Temp.z); Debug(); 
+				auto LeftHand = GetHandLocation(SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix(), "LeftHand");
+				auto RightHand = GetHandLocation(SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix(), "RightHand");
+				sprintf(DebugBuffer, "Left_Edge_Horizontal_Jump -> Jump_To_Hang_With_Leg LeftHand == [%f %f %f] RightHand == [%f %f %f]\n", LeftHand.x, LeftHand.y, LeftHand.z, RightHand.x, RightHand.y, RightHand.z); Debug();
 				//EdgeHorizontalJumpAnimation::resetPosesStates -111.211891 17.973904 -34.255638 -111.211891 17.973906 -34.255638
 				//Left_Edge_Horizontal_Jump -> Jump_To_Hang_With_Leg -111.211899 17.974941 -39.226669
 
@@ -1454,9 +1472,26 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		.setEndPoint(Jump_To_Hang_With_Leg)
 		.reverse([Graph](){ 
 			auto PrevAnimName = Graph->getPrevAnimationName();
-			return (PrevAnimName == "Left_Edge_Horizontal_Jump" || PrevAnimName == "Right_Edge_Horizontal_Jump") && !Graph->getAnimationBlend()->isPlaying();
+			return
+				(
+					PrevAnimName == "BallisticFly" || PrevAnimName == "JumpFromWall" ||
+					PrevAnimName == "Left_Edge_Horizontal_Jump" || PrevAnimName == "Right_Edge_Horizontal_Jump"
+				)
+				&& !Graph->getAnimationBlend()->isPlaying();
+			})
+	;
+	Graph->createLink(Hanging_Idle_WithOut_Leg)
+		.setEndPoint(Jump_To_Hang_WithOut_Leg)
+		.reverse([Graph](){
+			auto PrevAnimName = Graph->getPrevAnimationName();
+			return
+				(
+				PrevAnimName == "BallisticFly" || PrevAnimName == "JumpFromWall" ||
+				PrevAnimName == "Left_Edge_Horizontal_Jump" || PrevAnimName == "Right_Edge_Horizontal_Jump"
+				)
+				&& !Graph->getAnimationBlend()->isPlaying();
 		})
-		;
+	;
 
 	Graph->createLink(Climb_Fold_Hands)
 		.setEndPoint(RightShimmy)
@@ -1464,7 +1499,7 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			bool bRet = fabs(input_move.y) == 0.0f && IsShimmyAnimationEdgeBreakOff(RightShimmy); 
 			if (bRet){
 				auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
-				state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName);
+				state_hanging_Hand_Location = ClimbingPathHelper->ToSegmentBasis(GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName), ClimbingPathHelper->GetCurrentSegmentIndex());
 			}
 			return bRet;
 		})
@@ -1473,7 +1508,7 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			bool bRet = fabs(input_move.y) == 0.0f && IsShimmyAnimationEdgeBreakOff(LeftShimmy);
 			if (bRet){
 				auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
-				state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = RightHandName);
+				state_hanging_Hand_Location = ClimbingPathHelper->ToSegmentBasis(GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = RightHandName), ClimbingPathHelper->GetCurrentSegmentIndex());
 			}
 			return bRet;
 		})
@@ -1486,9 +1521,9 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 			if (bRet){
 				auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
 				if(state_hanging_Hand_Name == RightHandName)
-					state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName);
+					state_hanging_Hand_Location = ClimbingPathHelper->ToSegmentBasis(GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = LeftHandName), ClimbingPathHelper->GetCurrentSegmentIndex());
 				else
-					state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = RightHandName);
+					state_hanging_Hand_Location = ClimbingPathHelper->ToSegmentBasis(GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name = RightHandName), ClimbingPathHelper->GetCurrentSegmentIndex());
 			}
 			return bRet;
 		})
@@ -1528,8 +1563,8 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 		.reverse([](){ return start_hanging_Ledge_Name != state_hanging_Ledge_Name || start_hanging_Ledge_BoxIndex != state_hanging_Ledge_BoxIndex; })
 		.setEndPoint(jumpUpAnimation)
 		.reverse([](){ return state_jump && state_hanging; })
-		.setEndPoint(Jump_To_Hang_With_Leg)
-		.reverse([Graph](){ return Graph->getPrevAnimationName() == "BallisticFly" && !Graph->getAnimationBlend()->isPlaying(); })
+		//.setEndPoint(Jump_To_Hang_With_Leg)
+		//.reverse([Graph](){ return (Graph->getPrevAnimationName() == "BallisticFly" || Graph->getPrevAnimationName() == "JumpFromWall") && !Graph->getAnimationBlend()->isPlaying(); })
 		.setEndPoint(ActionPose_Release_And_Go_Down)
 		.reverse([](){ 
 			auto bRet = start_hanging_Ledge_Name != state_hanging_Ledge_Name || start_hanging_Ledge_BoxIndex != state_hanging_Ledge_BoxIndex; 
@@ -1583,6 +1618,16 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 
 	Graph->createLink(Jump_To_Hang_With_Leg)
 		.setEndPoint(BallisticFly)
+		.reverse([](){ return state_hanging && state_BallisticFly_to_HangingIdle; })
+		;
+
+	Graph->createLink(Jump_To_Hang_WithOut_Leg)
+		.setEndPoint(JumpFromWall)
+		.reverse([](){ return state_hanging && state_BallisticFly_to_HangingIdleWithOutLeg; })
+		;
+
+	Graph->createLink(Jump_To_Hang_With_Leg)
+		.setEndPoint(JumpFromWall)
 		.reverse([](){ return state_hanging && state_BallisticFly_to_HangingIdle; })
 		;
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

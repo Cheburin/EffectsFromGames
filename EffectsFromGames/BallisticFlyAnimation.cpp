@@ -108,13 +108,13 @@ struct BallisticFlyAnimation : public Animation
 
 	void advanse(double elapsedTime, SimpleMath::Vector3& DeltaTranslation, SimpleMath::Quaternion& DeltaRotation)
 	{
-		const auto modelTransform = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+		//const auto modelTransform = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
 
 		Impl->prev_frameNo = Impl->frameNo;
 		Impl->prev_local_time = Impl->local_time;
 
 		DeltaRotation = SimpleMath::Quaternion::Identity;
-		DeltaTranslation = SimpleMath::Vector3::TransformNormal(evalBallisticPath(), modelTransform);
+		DeltaTranslation = evalBallisticPath();//SimpleMath::Vector3::TransformNormal(evalBallisticPath(), modelTransform);
 
 		Impl->global_time += elapsedTime;
 		Impl->frameNo += 1;
@@ -214,6 +214,7 @@ void SetBallisticAnimationCatherHand(AnimationBase * Animation, int CatherHandIn
 	BallisticAnimation->CurrentJoints = BallisticAnimation->JointsByPose[CatherHandIndex];
 	BallisticAnimation->CurrentMetaChannels = BallisticAnimation->MetaChannelsByPose[CatherHandIndex];
 }
+
 
 //SimpleMath::Vector3 BallisticAnimation_SimulatePath(AnimationBase * Animation, float Time)
 //{

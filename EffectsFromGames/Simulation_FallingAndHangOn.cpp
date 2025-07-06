@@ -13,6 +13,7 @@ extern SimpleMath::Vector3 CollisionImpactPoint;
 
 extern bool state_falling;
 extern bool state_falling_and_hang_on;
+extern bool state_jump;
 
 extern std::string state_hanging_Ledge_Name;
 extern Box state_hanging_Ledge_Box;
@@ -22,7 +23,7 @@ namespace Simulation
 {
 	void FallingAndHangOn(const SimpleMath::Vector3& CapsuleOrigin, const SimpleMath::Vector3& CapsuleA)
 	{
-		if (state_falling_and_hang_on)
+		if (state_jump || state_falling_and_hang_on)
 		{
 			return;
 		}

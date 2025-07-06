@@ -32,15 +32,15 @@ namespace Simulation
 
 		if (state_hanging_Toe_activated)
 		{
-			char* CurrentAnimName = EveAnimationGraph->getAnimationName();
-
-			const auto ptrHoldWhilePlaying = HoldWhilePlaying.find(CurrentAnimName);
-			if (ptrHoldWhilePlaying != HoldWhilePlaying.end())
-			{
-				auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms[ModelTransformName]) * GWorld.Capsules[CapsuleName].getMatrix();
-				auto Offset = state_hanging_Toe_Location - GetHandLocation(FromModelSpaceToWorld, state_hanging_Toe_Name);
-				GWorld.Capsules[CapsuleName].origin += Offset;
-			}
+			//char* CurrentAnimName = EveAnimationGraph->getAnimationName();
+			//
+			//const auto ptrHoldWhilePlaying = HoldWhilePlaying.find(CurrentAnimName);
+			//if (ptrHoldWhilePlaying != HoldWhilePlaying.end())
+			//{
+			//	auto FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms[ModelTransformName]) * GWorld.Capsules[CapsuleName].getMatrix();
+			//	auto Offset = state_hanging_Toe_Location - GetHandLocation(FromModelSpaceToWorld, state_hanging_Toe_Name);
+			//	GWorld.Capsules[CapsuleName].origin += Offset;
+			//}
 		}
 	}
 }

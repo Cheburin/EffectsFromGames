@@ -91,6 +91,9 @@ struct ShimmyAnimation : public Animation
 	//Animation* PreviousAnimation;
 	std::function<void __cdecl(bool state)> onPlayingChanged;
 
+	int Animation_Changed_Count;
+	IClimbingPathHelper::EPath PathState_Current;
+
 	int MasterHandIndex;
 	int SlaveHandIndex;
 
@@ -268,6 +271,8 @@ struct ShimmyAnimation : public Animation
 
 	Animation* ChooseShimmy()
 	{
+		auto prevShimmyKind = ShimmyKind;
+
 		Animation* NewAnimation = Shimmy;
 		ShimmyKind = 1;
 		ShimmyMoveRightCatchLedgeTime = 0.4;
@@ -279,6 +284,11 @@ struct ShimmyAnimation : public Animation
 			ShimmyKind = 2;
 			ShimmyMoveRightCatchLedgeTime = 10.f / 35.f;
 			ShimmyMoveLeftCatchLedgeTime = 10.f / 35.f;
+		}
+
+		if (ShimmyKind != prevShimmyKind)
+		{
+			sprintf(DebugBuffer, "ShimmyAnimation ChooseShimmy ShimmyKind Changed To %d\n", ShimmyKind); Debug();
 		}
 
 		return NewAnimation;
@@ -311,35 +321,71 @@ struct ShimmyAnimation : public Animation
 		DeltaRotation = SimpleMath::Quaternion::Identity;
 		DeltaTranslation = SimpleMath::Vector3::TransformNormal(ModelSpaceDeltaDeltaTranslation, modelTransform);
 
-		auto Ret = ClimbingPathHelper->Advanse(this, AnimationTime, Impl->global_time, elapsedTime, MasterHandIndex, Hands[MasterHandIndex], SlaveHandIndex, Hands[SlaveHandIndex], CurrentJoints[64][1], DeltaRotation, DeltaTranslation);
+		auto IsSegmentChanging_Current = ClimbingPathHelper->IsSegmentChanging();
+
+		auto PathState_Next = ClimbingPathHelper->Advanse(this, AnimationTime, Impl->global_time, elapsedTime, MasterHandIndex, Hands[MasterHandIndex], SlaveHandIndex, Hands[SlaveHandIndex], CurrentJoints[64][1], DeltaRotation, DeltaTranslation);
+
+		auto IsSegmentChanging_Next = ClimbingPathHelper->IsSegmentChanging();
+
+		auto IsBlend_Current = min(AnimationTime / 0.250f, 1.f) < 1.f;
+
+		auto IsBlend_Next = min((AnimationTime + elapsedTime) / 0.250f, 1.f) < 1.f;
+
+		{
+			BlendK = min(AnimationTime / 0.250f, 1.f);
+
+			if (BlendK < 1.f)
+			{
+				sprintf(DebugBuffer, "ShimmyAnimation Lerp AnimationTime == %f\n", AnimationTime); Debug();
+
+				const auto delta1 = (HoldHandLocationWhileBlend - Hands[BlendHandIndex]);
+				DeltaTranslation += delta1;
+
+				const auto slave = Hands[SlaveHandIndex] + delta1;
+
+				const auto delta2 = ClimbingPathHelper->ToSegmentBasis(slave, ClimbingPathHelper->GetCurrentSegmentIndex()) - slave;
+				DeltaTranslation += delta2;
+
+				Hands[0] += (delta1 + delta2);
+				Hands[1] += (delta1 + delta2);
+			}
+		}
+
+		if (IsSegmentChanging_Current != IsSegmentChanging_Next)
+		{
+			Animation_Changed_Count = 0;
+		}
 
 		Animation* NewAnimation = CurrentAnimation;
 
-		if (Ret == IClimbingPathHelper::EPath::Corner_Inside)
+		if (PathState_Next == IClimbingPathHelper::EPath::Corner_Inside)
 		{
 			BlendHandIndex = MasterHandIndex;
 
 			NewAnimation = Corner_Inside_Hanging;
 		}
-		else if (Ret == IClimbingPathHelper::EPath::Corner_Outside)
+		else if (PathState_Next == IClimbingPathHelper::EPath::Corner_Outside)
 		{
 			BlendHandIndex = MasterHandIndex;
 
 			NewAnimation = Corner_Outside_Hanging;
 		}
-		else if (Ret == IClimbingPathHelper::EPath::Edge_Straight)
+		else if (PathState_Next == IClimbingPathHelper::EPath::Edge_Straight)
 		{
-			BlendHandIndex = SlaveHandIndex;
+			if (Animation_Changed_Count == 0)
+			{
+				NewAnimation = ChooseShimmy();
 
-			NewAnimation = ChooseShimmy();
+				BlendHandIndex = (ShimmyKind == 1 && PathState_Next == PathState_Current) ? MasterHandIndex : SlaveHandIndex;
+			}
 		}
-		else if (Ret == IClimbingPathHelper::EPath::Fold_Edge_Break_Off)
+		else if (PathState_Next == IClimbingPathHelper::EPath::Fold_Edge_Break_Off)
 		{
 			BlendHandIndex = MasterHandIndex;
 
 			NewAnimation = Climb_Fold_Hands;
 		}
-		else if (Ret == IClimbingPathHelper::EPath::Edge_Break_Off)
+		else if (PathState_Next == IClimbingPathHelper::EPath::Edge_Break_Off)
 		{
 			BlendHandIndex = SlaveHandIndex;
 
@@ -348,29 +394,31 @@ struct ShimmyAnimation : public Animation
 
 		if (CurrentAnimation != NewAnimation)
 		{
+			Animation_Changed_Count++;
+
 			PreviousJoints = CurrentJoints;
 
 			CurrentAnimation = NewAnimation;
 
 			BlendK = 0.f;
 			AnimationTime = 0.f;
+			ClimbingPathHelper->ResetPrevGlobalTime();
 
 			CurrentAnimation->reset();
 			CurrentAnimation->setPlaying(true);
 
 			HoldHandLocationWhileBlend = Hands[BlendHandIndex];
 			SlaveHandLocationWhileBlend = Hands[SlaveHandIndex];
+
+			sprintf(DebugBuffer, "ShimmyAnimation Reset Lerp %d %d %f %f %f\n", BlendHandIndex, SlaveHandIndex, HoldHandLocationWhileBlend.x, HoldHandLocationWhileBlend.y, HoldHandLocationWhileBlend.z); Debug();
 		}
 		else
 		{
-			BlendK = min(AnimationTime / 0.250f, 1.f);
+			AnimationTime += elapsedTime;
 
-			if (BlendK < 1.f)
+			if (IsBlend_Current && !IsBlend_Next)
 			{
-				const auto delta = (HoldHandLocationWhileBlend - Hands[BlendHandIndex]);
-				DeltaTranslation += delta;
-				const auto slave = Hands[SlaveHandIndex] + delta;
-				DeltaTranslation += ClimbingPathHelper->ToSegmentBasis(slave, ClimbingPathHelper->GetCurrentSegmentIndex()) - slave;
+				ClimbingPathHelper->ResetPrevGlobalTime();
 			}
 		}
 		//ClimbingPathHelper->UpdateSegmantCoords(SimpleMath::Vector3::Transform(LeftHand, modelTransform), SimpleMath::Vector3::Transform(RightHand, modelTransform));
@@ -380,11 +428,10 @@ struct ShimmyAnimation : public Animation
 		///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//sprintf(DebugBuffer, "ShimmyAnimation %f %f %f\n", DeltaTranslation.x, DeltaTranslation.y, DeltaTranslation.z); Debug();
 		//sprintf(DebugBuffer, "ShimmyAnimation AnimationTime %f %f %f\n", AnimationTime, BlendK, CurrentAnimation->getLocTime()); Debug();
-
 		Impl->frameNo += 1;
 		Impl->global_time += elapsedTime;
-		AnimationTime += elapsedTime;
 
+		PathState_Current = PathState_Next;
 		//LerpPoses(PoseTime / PoseMaxTime);
 
 		//if (IsPhaseEnd())
@@ -466,19 +513,29 @@ struct ShimmyAnimation : public Animation
 
 		Impl->playing = false;
 
-		Shimmy->reset();
+		{
+			Shimmy->reset();
 
-		Corner_Inside_Hanging->reset();
+			BracedHangShimmy->reset();
+
+			Corner_Inside_Hanging->reset();
+
+			Corner_Outside_Hanging->reset();
+		}
 
 		CurrentAnimation = ChooseShimmy();
 
 		PreviousJoints = CurrentAnimation->CurrentJoints;
+
+		Animation_Changed_Count = 0;
 
 		AnimationTime = 0.250f;
 
 		BlendK = 0.f;
 
 		ClimbingPathHelper->ResetStates();
+
+		PathState_Current = IClimbingPathHelper::EPath::Edge_Straight;
 	}
 	void AddOffset(SimpleMath::Vector3 value)
 	{
@@ -648,6 +705,9 @@ struct FClimbingPathHelper : IClimbingPathHelper
 	SimpleMath::Vector3 Next_Corner_Outside_Hand_Anchor;
 	SimpleMath::Vector3 Corner_Outside_Hand_Anchor;
 
+	SimpleMath::Vector3 PredictHandHangLocationOnEdgeStraight;
+	SimpleMath::Vector3 SlaveHandHangLocationOnEdgeStraight;
+
 	void IntersectSegments(FSegment& First, FSegment& Second)
 	{
 		SimpleMath::Vector2 getDistanceBetweenSkewLines(SimpleMath::Vector3 S1, SimpleMath::Vector3 V1, SimpleMath::Vector3 S2, SimpleMath::Vector3 V2);
@@ -722,6 +782,11 @@ struct FClimbingPathHelper : IClimbingPathHelper
 		return CurrentSegmentIndex;
 	}
 
+	void ResetPrevGlobalTime()
+	{
+		PrevGlobalTime = -1.f;
+	}
+
 	void ResetStates()
 	{
 		PrevGlobalTime = -1.f;
@@ -743,6 +808,16 @@ struct FClimbingPathHelper : IClimbingPathHelper
 			CurrentSegmentIndex = NewSegmentIndex;
 		}
 	}
+
+	bool IsSegmentChanging()
+	{
+		return CurrentSegmentIndex != NewSegmentIndex;
+	};
+
+	//void PredictHands(Animation* Sender, SimpleMath::Vector3 DeltaTranslation, unsigned int MasterHandIndex, float AnimationLocalTime, SimpleMath::Vector3 SlaveHandLocation)
+	//{
+	//	PredictMasterHandSegmentCoordAfterFinishMovementInThisCycle(Sender, DeltaTranslation, MasterHandIndex, AnimationLocalTime, SlaveHandLocation);
+	//};
 
 	EPath Advanse(Animation* Sender, float LocalTime, float GlobalTime, float DeltaTime, int MasterHandIndex, SimpleMath::Vector3 MasterHandLocation, int SlaveHandIndex, SimpleMath::Vector3 SlaveHandLocation, DirectX::XMFLOAT4& RootRotation, SimpleMath::Quaternion& DeltaRotation, SimpleMath::Vector3& DeltaTranslation)
 	{
@@ -793,7 +868,7 @@ struct FClimbingPathHelper : IClimbingPathHelper
 			{
 				PrevGlobalTime = AnimationLocalTime;
 
-				auto PredictSegmentCoord = PredictMasterHandSegmentCoordAfterFinishMovementInThisCycle(Sender, DeltaTranslation, MasterHandIndex);
+				auto PredictSegmentCoord = PredictMasterHandSegmentCoordAfterFinishMovementInThisCycle(Sender, DeltaTranslation, MasterHandIndex, AnimationLocalTime, SlaveHandLocation);
 
 				NewSegmentIndex = CurrentSegmentIndex;
 
@@ -832,48 +907,57 @@ struct FClimbingPathHelper : IClimbingPathHelper
 				//auto HandLocation = SampleMeta(Animation->Shimmy, Animation->Shimmy->getLocTime(), MasterHandIndex + 1);
 				//const auto& Box = GWorld.Ledges[state_hanging_Ledge_Name].Boxes[NewSegmentIndex];
 				//if (Box.Containe(DeltaTranslation + SimpleMath::Vector3::Transform(HandLocation, modelTransform)))
-				if (MasterHandIndex == 1 && Owner.ShimmyMoveRightCatchLedgeTime < AnimationLocalTime)
+				//if (MasterHandIndex == 1 && Owner.ShimmyMoveRightCatchLedgeTime < AnimationLocalTime)
+				//{
+				//	sprintf(DebugBuffer, "Animation->Shimmy MasterHandIndex == 1 %f\n", AnimationLocalTime); Debug();
+				//	EnsureSegmentChanged();
+				//}
+				//else if (MasterHandIndex == 0 && AnimationLocalTime < Owner.ShimmyMoveLeftCatchLedgeTime)
+				//{
+				//	sprintf(DebugBuffer, "Animation->Shimmy MasterHandIndex == 0 %f\n", AnimationLocalTime); Debug();
+				//	EnsureSegmentChanged();
+				//}
+				const auto t = GetSegmentCoord(SlaveHandLocation, NewSegmentIndex);
+				if (0.f <= t && t <= 1.f)
 				{
-					sprintf(DebugBuffer, "Animation->Shimmy MasterHandIndex == 1 %f\n", AnimationLocalTime); Debug();
-					EnsureSegmentChanged();
-				}
-				else if (MasterHandIndex == 0 && AnimationLocalTime < Owner.ShimmyMoveLeftCatchLedgeTime)
-				{
-					sprintf(DebugBuffer, "Animation->Shimmy MasterHandIndex == 0 %f\n", AnimationLocalTime); Debug();
 					EnsureSegmentChanged();
 				}
 			}
 
 			if (0.250f <= LocalTime)
 			{
-				SimpleMath::Vector3 handLocation;
+				SimpleMath::Vector3 CurrentHandLocation, TargetHandLocation;
 				if (MasterHandIndex == 1)
 				{
 					if (AnimationLocalTime < Owner.ShimmyMoveRightCatchLedgeTime)
 					{
-						handLocation = SlaveHandLocation;
+						TargetHandLocation = SlaveHandHangLocationOnEdgeStraight;
+						CurrentHandLocation = SlaveHandLocation;
 					}
 					else
 					{
-						handLocation = MasterHandLocation;
+						TargetHandLocation = PredictHandHangLocationOnEdgeStraight;
+						CurrentHandLocation = MasterHandLocation;
 					}
 				}
 				else if (MasterHandIndex == 0)
 				{
 					if (AnimationLocalTime < Owner.ShimmyMoveLeftCatchLedgeTime)
 					{
-						handLocation = MasterHandLocation;
+						TargetHandLocation = PredictHandHangLocationOnEdgeStraight;
+						CurrentHandLocation = MasterHandLocation;
 					}
 					else
 					{
-						handLocation = SlaveHandLocation;
+						TargetHandLocation = SlaveHandHangLocationOnEdgeStraight;
+						CurrentHandLocation = SlaveHandLocation;
 					}
 				}
 				auto Index = CurrentSegmentIndex;
-				const auto RelCoord = GetSegmentCoord(handLocation, CurrentSegmentIndex);
+				const auto RelCoord = GetSegmentCoord(TargetHandLocation, CurrentSegmentIndex);
 				if (1.f < RelCoord) Index = NextSegmentIndex;
 				else if (RelCoord < 0.f) Index = PrevSegmentIndex;
-				DeltaTranslation += ToSegmentBasis(handLocation, Index) - handLocation;
+				DeltaTranslation += ToSegmentBasis(TargetHandLocation, Index) - CurrentHandLocation;
 			}
 
 			GWorld.Capsules["eve"].orientation = Segments[CurrentSegmentIndex].MakeCharacterOrientation();
@@ -944,6 +1028,14 @@ struct FClimbingPathHelper : IClimbingPathHelper
 			if (0.f <= t)
 			{
 				return CurrentPathState = EPath::Edge_Break_Off;
+			}
+		}
+
+		if (CurrentPathState == EPath::Edge_Break_Off)
+		{
+			if (0.250f <= LocalTime)
+			{
+				DeltaTranslation += ToSegmentBasis(SlaveHandLocation, CurrentSegmentIndex) - SlaveHandLocation;
 			}
 		}
 
@@ -1107,7 +1199,7 @@ struct FClimbingPathHelper : IClimbingPathHelper
 		return SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * Q * T;
 	}
 	
-	float PredictMasterHandSegmentCoordAfterFinishMovementInThisCycle(Animation* Sender, SimpleMath::Vector3 DeltaTranslation, unsigned int channel)
+	float PredictMasterHandSegmentCoordAfterFinishMovementInThisCycle(Animation* Sender, SimpleMath::Vector3 DeltaTranslation, unsigned int channel, float CurrentAnimationTime, SimpleMath::Vector3 HandTargetLocation)
 	{
 		SimpleMath::Vector3 HipsDelta, HandLocation, HandDelta = SimpleMath::Vector3::Zero;
 
@@ -1130,7 +1222,7 @@ struct FClimbingPathHelper : IClimbingPathHelper
 			std::swap(MetaIndex[0], MetaIndex[1]);
 		}
 
-		if (BlendIsPlaying)
+		/*if (BlendIsPlaying)
 		{
 			const auto TargetLocation = SimpleMath::Vector3::Transform(state_hanging_Hand_Location, modelTransform.Invert());
 
@@ -1141,11 +1233,20 @@ struct FClimbingPathHelper : IClimbingPathHelper
 		}
 		HipsDelta = SampleMeta(ShimmyAnimation, HandStopTime, 0) - SampleMeta(ShimmyAnimation, BlendTime, 0);
 		HandLocation = SampleMeta(ShimmyAnimation, HandStopTime, MetaIndex[1]) + HipsDelta;
-		HandLocation += HandDelta;
+		HandLocation += HandDelta;*/
+
+		const auto EffectiveHandTargetLocation = BlendIsPlaying ? GetHandLocation(modelTransform, state_hanging_Hand_Name) : HandTargetLocation;
+
+		HipsDelta = SampleMeta(ShimmyAnimation, HandStopTime, 0) - SampleMeta(ShimmyAnimation, CurrentAnimationTime, 0);
+		HandDelta = SimpleMath::Vector3::Transform(EffectiveHandTargetLocation, modelTransform.Invert()) - (SampleMeta(ShimmyAnimation, HandStopTime, MetaIndex[0]) + HipsDelta);
+		HandLocation = ( SampleMeta(ShimmyAnimation, HandStopTime, MetaIndex[1]) + HipsDelta ) + HandDelta;
 
 		float t = GetSegmentCoord(DeltaTranslation + SimpleMath::Vector3::Transform(HandLocation, modelTransform), CurrentSegmentIndex);
 		sprintf(DebugBuffer, "Predict |HandDelta|(%f) |DeltaTranslation|(%f) getLocTime(%f) channel(%d) BlendTime(%f)\n", HandDelta.Length(), DeltaTranslation.Length(), Animation->Shimmy->getLocTime(), channel, BlendTime); Debug();
 		PredictHandHangLocation = t * Segments[CurrentSegmentIndex].Basis + Segments[CurrentSegmentIndex].A;
+
+		SlaveHandHangLocationOnEdgeStraight = EffectiveHandTargetLocation;
+		PredictHandHangLocationOnEdgeStraight = PredictHandHangLocation;
 
 		return t;
 	}

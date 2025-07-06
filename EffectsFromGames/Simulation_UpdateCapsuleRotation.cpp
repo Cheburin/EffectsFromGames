@@ -85,6 +85,7 @@ namespace Simulation
 	{
 		TargetOrientation = TheTargetOrientation;
 		TargetRootDeltaRotation = TheTargetRootDeltaRotation;
+		sprintf(DebugBuffer, "UpdateCapsuleRotation_SetParams() %f %f %f %f\n", TargetOrientation.x, TargetOrientation.y, TargetOrientation.z, TargetOrientation.w); Debug();
 	}
 
 	void UpdateCapsuleRotation(Capsule& capsule)
@@ -105,6 +106,9 @@ namespace Simulation
 			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_With_Leg", "BallisticFly"));
 			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_WithOut_Leg", "BallisticFly"));
 
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_With_Leg", "JumpFromWall"));
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_WithOut_Leg", "JumpFromWall"));
+
 			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("LeftShimmy", "Left_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
 			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Left_Edge_Horizontal_Jump", "Left_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
 
@@ -114,6 +118,10 @@ namespace Simulation
 			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Right_Edge_Horizontal_Jump", "Right_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
 
 			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Jump_To_Hang_With_Leg", "Right_Edge_Horizontal_Jump"));//c second на first конкатенирует InverseTotalRootRotation
+
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("walking", "ladder"));
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("Crouched_Walking", "ladder"));
+			ApplyRotationByAnimChange.insert(std::pair<char*, char*>("ladder", "ladder"));
 		}
 
 		////if (CurrentAnimationName != EveAnimationGraph->getAnimationName())// || (!EveAnimationGraph->IsBlendActivated() && SignalResetRotations))
@@ -231,6 +239,8 @@ namespace Simulation
 				JointSQT& RootJoint = EveAnimationGraph->getPlayingAnimation()->CurrentJoints[64];
 				
 				(*GetSkeletonMatrix(Eve->skelet, 64)) = RootJoint.matrix();
+
+				sprintf(DebugBuffer, "UpdateCapsuleRotation Done() %f %f %f %f\n", TargetOrientation.x, TargetOrientation.y, TargetOrientation.z, TargetOrientation.w); Debug();
 
 				capsule.orientation = TargetOrientation;
 

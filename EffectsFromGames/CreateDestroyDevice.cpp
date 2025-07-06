@@ -27,6 +27,10 @@ Character * Eve;
 
 StaticObject * Pool;
 
+StaticObject * Ladder;
+
+SimpleMath::Vector3 LadderSize;
+
 IAnimationGraph2 * EveAnimationGraph;
 
 IKSolverInterface * EveIKSolver;
@@ -109,8 +113,16 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 	}
 	{
 		std::map<const WCHAR*, EffectShaderFileDef> shaderDef;
+		shaderDef[L"VS"] = { L"ModelVS.hlsl", L"BOX_VS", L"vs_5_0" };
+		shaderDef[L"GS"] = { L"ModelVS.hlsl", L"BOX_GS", L"gs_5_0" };
+		shaderDef[L"PS"] = { L"ModelPS.hlsl", L"LEDGE_BOX_PS", L"ps_5_0" };
+
+		G->ledge_box_effect = createHlslEffect(device, shaderDef);
+	}
+	{
+		std::map<const WCHAR*, EffectShaderFileDef> shaderDef;
 		shaderDef[L"VS"] = { L"ModelVS.hlsl", L"STD_LIT_VS", L"vs_5_0" };
-		shaderDef[L"PS"] = { L"ModelPS.hlsl", L"BOX_PS", L"ps_5_0" };
+		shaderDef[L"PS"] = { L"ModelPS.hlsl", L"LEDGE_BOX_PS", L"ps_5_0" };
 
 		G->std_lit_effect = createHlslEffect(device, shaderDef);
 	}
@@ -207,6 +219,8 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Characters\\textures\\SpacePirate_diffuse.png", NULL, NULL, G->eve_d_texture.ReleaseAndGetAddressOf(), NULL);
 		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Characters\\textures\\SpacePirate_normal.png", NULL, NULL, G->eve_n_texture.ReleaseAndGetAddressOf(), NULL);
 		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Textures\\waternormal.dds", NULL, NULL, G->water_texture.ReleaseAndGetAddressOf(), NULL);
+		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Textures\\T_Default_Material_Grid_M.BMP", NULL, NULL, G->default_Material_Grid_M.ReleaseAndGetAddressOf(), NULL);
+		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Textures\\T_Default_Material_Grid_N.BMP", NULL, NULL, G->default_Material_Grid_N.ReleaseAndGetAddressOf(), NULL);
 	}
 
 	//procedural models
@@ -249,6 +263,9 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 	{
 		Pool = loadStaticObject(device, "Media\\Models\\pool.dae");
 		calculateFramesTransformations(Pool->frame, SimpleMath::Matrix::Identity);
+
+		Ladder = loadStaticObject(device, "Media\\Models\\Ladder.dae");
+		//calculateFramesTransformations(Ladder->frame, SimpleMath::Matrix::Identity);
 	}
 
 	//set states 
@@ -319,6 +336,9 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 	GWorld.Boxes["platform9"].orientation = Quaternion::CreateFromRotationMatrix(Matrix::Identity);
 	GWorld.Boxes["platform9"].origin = GWorld.Boxes["platform4"].origin + Vector3(-15, 8.5*0.5+4, -7.5 + -7.5 + -1.25);
 
+	GWorld.Boxes["platform10"].size = Vector3(12, 8.4, 7.5);
+	GWorld.Boxes["platform10"].orientation = Quaternion::CreateFromRotationMatrix(Matrix::Identity);
+	GWorld.Boxes["platform10"].origin = GWorld.Boxes["platform4"].origin + Vector3(15, -GWorld.Boxes["platform4"].origin.y + 8.4*0.5, -7.5 + -7.5 + -1.25);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	GWorld.Boxes["box"].size = Vector3(10, 14.0, 5);
@@ -467,6 +487,10 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 		SimpleMath::Matrix::CreateScale(GWorld.Boxes["platform9"].size) *
 		GWorld.Boxes["platform9"].getMatrix();
 
+	GWorld.WorldTransforms["platform10"] =
+		SimpleMath::Matrix::CreateTranslation(-0.5, -0.5, -0.5) *
+		SimpleMath::Matrix::CreateScale(GWorld.Boxes["platform10"].size) *
+		GWorld.Boxes["platform10"].getMatrix();
 	//////////////////////////////////////////////////////////////////////
 
 	GWorld.WorldTransforms["pool"] =
@@ -483,6 +507,37 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 	GWorld.Meshes["pool"].origin = Vector3(25 + 8, 6.5, 25 - 5);
 	GWorld.Meshes["pool"].orientation = Quaternion::CreateFromRotationMatrix(SimpleMath::Matrix::CreateRotationX((PI * 90.0) / 180.0));
 	Pool->getAllTriangles(GWorld.Meshes["pool"].vertex, GWorld.Meshes["pool"].getMatrix());
+
+	////////////////////////////////////////////////////////////////////////
+
+	GWorld.WorldTransforms["Ladder"] =
+		SimpleMath::Matrix::CreateTranslation(0, 0, -0.05f) *
+		GWorld.WorldTransforms["eveSkinnedModel"] *
+		SimpleMath::Matrix::CreateRotationY((PI * 90.0) / 180.0) *
+		SimpleMath::Matrix::CreateScale(Vector3(1.0f / GWorld.Boxes["platform10"].size.x, 1.0f / GWorld.Boxes["platform10"].size.y, 1.0f / GWorld.Boxes["platform10"].size.z)) *
+		SimpleMath::Matrix::CreateTranslation(0, 0.5, -0.5) *
+		SimpleMath::Matrix::CreateScale(GWorld.Boxes["platform10"].size) * GWorld.Boxes["platform10"].getMatrix();
+
+	{
+		#undef min // use __min instead
+		#undef max // use __max instead
+		std::vector<SimpleMath::Vector3> vertex;
+		SimpleMath::Vector3 BoundBoxMin, BoundBoxMax;
+		BoundBoxMin = SimpleMath::Vector3(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+		BoundBoxMax = SimpleMath::Vector3(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+		Ladder->getAllTriangles(vertex, SimpleMath::Matrix::Identity);
+		for (int i = 0; i < vertex.size(); i++)
+		{
+			BoundBoxMin.x = __min(BoundBoxMin.x, vertex[i].x);
+			BoundBoxMin.y = __min(BoundBoxMin.y, vertex[i].y);
+			BoundBoxMin.z = __min(BoundBoxMin.z, vertex[i].z);
+			BoundBoxMax.x = __max(BoundBoxMax.x, vertex[i].x);
+			BoundBoxMax.y = __max(BoundBoxMax.y, vertex[i].y);
+			BoundBoxMax.z = __max(BoundBoxMax.z, vertex[i].z);
+		}
+		LadderSize = SimpleMath::Vector3::TransformNormal(BoundBoxMax - BoundBoxMin, SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]));
+		LadderSize.x = fabs(LadderSize.x); LadderSize.y = fabs(LadderSize.y); LadderSize.z = fabs(LadderSize.z);
+	}
 
 	////////////////////////////////////////////////////////////////////////
 	GWorld.Ledges["ClimbingPlatform5Platform6"] = ClimbingPath::Create(&GWorld.Boxes["platform5"], &GWorld.Boxes["platform6"]);
@@ -549,6 +604,8 @@ void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 	delete Eve;
 
 	delete Pool;
+
+	delete Ladder;
 
 	g_DialogResourceManager.OnD3D11DestroyDevice();
 

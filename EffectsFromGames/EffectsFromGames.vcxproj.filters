@@ -191,6 +191,17 @@
     <ClCompile Include="Simulation_HoldToe.cpp">
       <Filter>CallBack</Filter>
     </ClCompile>
+    <ClCompile Include="BracedHangHopUpAnimation.cpp">
+      <Filter>CallBack</Filter>
+    </ClCompile>
+    <ClCompile Include="LadderAnimation.cpp">
+      <Filter>CallBack</Filter>
+    </ClCompile>
+    <ClCompile Include="Simulation_Ladder.cpp">
+      <Filter>CallBack</Filter>
+    </ClCompile>
+    <ClCompile Include="AnimationClasses.h" />
+    <ClCompile Include="AnimationClasses.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h">

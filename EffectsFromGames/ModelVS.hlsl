@@ -297,6 +297,13 @@ struct BOX_VS_OUTPUT
 	float3 normal         : TEXCOORD1;
 	float3 pos            : TEXCOORD2;
 	float3 light_pos      : TEXCOORD3;
+	float2 face_uv        : TEXCOORD4;
+
+	float3 lightTBN       : TEXCOORD5;
+	float3 viewTBN        : TEXCOORD6;
+
+	float2 face_size      : TEXCOORD7;
+
     float4 clip_pos       : SV_POSITION; // Output position
 	float clip            : SV_ClipDistance0;
 };
@@ -309,6 +316,12 @@ BOX_VS_OUTPUT BOX_VS(uint VertexID : SV_VERTEXID)
 	output.light_pos = float3(0,0,0);
     output.normal = float3(0,0,0);
 	output.clip_pos = float4(0,0,0,1);
+	
+	output.face_uv = float2(0, 0);
+	output.face_size = float2(0, 0);
+	output.lightTBN = float3(0, 0, 0);
+	output.viewTBN = float3(0, 0, 0);
+	output.clip = 0;
 
     return output;	
 }
@@ -323,6 +336,14 @@ static const float4 cubeVerts[8] =
 	float4(0, 1, 1, 1),  // LT  5
 	float4(1, 0, 1, 1),  // RB  6
 	float4(1, 1, 1, 1)    // RT  7
+};
+
+static const float2 cubeFaceUV[4] =
+{
+	float2(0, 0),//
+	float2(0, 1),//
+	float2(1, 0),//
+	float2(1, 1),//
 };
 
 static const int cubeIndices[24] =
@@ -353,16 +374,45 @@ void BOX_GS(point BOX_VS_OUTPUT pnt[1], uint primID : SV_PrimitiveID,  inout Tri
 	[unroll]
 	for (int i = 0; i < 6; i++)
 	{
-		float3 normal = cross(v[cubeIndices[i * 4 + 1]].pos - v[cubeIndices[i * 4 + 0]].pos, v[cubeIndices[i * 4 + 2]].pos - v[cubeIndices[i * 4 + 0]].pos); 
-		normal = normalize(normal);
-		v[cubeIndices[i * 4 + 0]].normal = normal;
-		v[cubeIndices[i * 4 + 1]].normal = normal;
-		v[cubeIndices[i * 4 + 2]].normal = normal;
-		v[cubeIndices[i * 4 + 3]].normal = normal;
-		triStream.Append(v[cubeIndices[i * 4 + 0]]);
-		triStream.Append(v[cubeIndices[i * 4 + 1]]);
-		triStream.Append(v[cubeIndices[i * 4 + 2]]);
-		triStream.Append(v[cubeIndices[i * 4 + 3]]);
+		int FaceIndex = i * 4;
+
+		float3 tangent = cubeVerts[cubeIndices[FaceIndex + 2]].xyz - cubeVerts[cubeIndices[FaceIndex + 0]].xyz;
+		float3 bitangent = cubeVerts[cubeIndices[FaceIndex + 0]].xyz - cubeVerts[cubeIndices[FaceIndex + 1]].xyz;
+
+		float3 tangent_WS = mul(tangent, (float3x3)g_mWorld);
+		float3 bitangent_WS = mul(bitangent, (float3x3)g_mWorld);
+
+		float2 UVScale = float2(length(tangent_WS), length(bitangent_WS));
+
+		float3 normalize_tangent_WS = normalize(tangent_WS);
+		float3 normalize_bitangent_WS = normalize(bitangent_WS);
+		float3 normalize_normal_WS = cross(normalize_tangent_WS, normalize_bitangent_WS);
+ 
+ 		float3x3 WorldTBN = {
+			normalize_tangent_WS.x, normalize_tangent_WS.y, normalize_tangent_WS.z,
+			normalize_bitangent_WS.x, normalize_bitangent_WS.y, normalize_bitangent_WS.z,
+			normalize_normal_WS.x, normalize_normal_WS.y, normalize_normal_WS.z
+ 		};
+
+		float3 normalize_normal_VS = normalize(mul(normalize_normal_WS, (float3x3)g_mView));
+
+		[unroll]
+ 		for (int j = 0; j < 4; j++)
+ 		{
+			int INDEX = cubeIndices[FaceIndex + j];
+			float3 pos_WS = mul(cubeVerts[INDEX], g_mWorld).xyz;
+
+			v[INDEX].normal = normalize_normal_VS;
+			v[INDEX].face_uv = cubeFaceUV[j];
+			v[INDEX].face_size = UVScale;
+			v[INDEX].lightTBN = mul(WorldTBN, lightPos.xyz - pos_WS);
+			v[INDEX].viewTBN = mul(WorldTBN, g_mInvView._m30_m31_m32 - pos_WS);
+ 		}
+
+		triStream.Append(v[cubeIndices[FaceIndex + 0]]);
+		triStream.Append(v[cubeIndices[FaceIndex + 1]]);
+		triStream.Append(v[cubeIndices[FaceIndex + 2]]);
+		triStream.Append(v[cubeIndices[FaceIndex + 3]]);
 		triStream.RestartStrip();
 	}
 }
@@ -443,6 +493,10 @@ BOX_VS_OUTPUT STD_LIT_VS( in EVE_INPUT i )
     output.clip_pos = mul( float4( i.Pos, 1.0 ), g_mWorldViewProjection );
 
 	output.clip = dot( mul( float4(i.Pos, 1.0f), g_mWorld ), g_ClipPlane0 );
+	output.face_uv = float2(0, 0);
+	output.face_size = float2(0, 0);
+	output.lightTBN = float3(0, 0, 0);
+	output.viewTBN = float3(0, 0, 0);
 
     return output;
 };

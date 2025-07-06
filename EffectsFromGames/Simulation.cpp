@@ -94,6 +94,11 @@ float CameraBoom = 0.f;
 extern float state_CapsulAlfa_WS;
 
 extern float state_HipsAlfa_WS;
+
+extern std::string start_hanging_Ledge_Name;
+extern int start_hanging_Ledge_BoxIndex;
+extern std::string state_hanging_Ledge_Name;
+extern int state_hanging_Ledge_BoxIndex;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void updateOrientation(SimpleMath::Vector3 cameraDirection, SimpleMath::Vector3& _cameraPos, SimpleMath::Vector3& _cameraTarget){
@@ -381,6 +386,7 @@ SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
 //std::string CollisionObjectName;
 //int CollisionObjectType;
 SimpleMath::Vector3 EveHeadLocation = SimpleMath::Vector3::Zero;
+SimpleMath::Vector3 EveHandLocation[2];
 //void physCollision2(const Capsule& ca, const SimpleMath::Vector3 & worldDistance, float & T, SimpleMath::Vector3& impactPoint, SimpleMath::Vector3& impactNormal)
 //{
 //	std::string objectName;
@@ -469,7 +475,7 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 		JointHelpers::AnimToChain(Chains.RightShoulderRightHand, currentPos, EveIKSolver->chainRef(0));
 		JointHelpers::localToModel(Chains.RightShoulderRightHand.size(), EveIKSolver->chainRef(0));
 
-		EveIKSolver->solve(Chains.RightShoulderRightHand.size(), JointHelpers::transformFromFirstToLastJointFrame(Chains.HipsSpine2, currentPos, target));
+		EveIKSolver->solve(0, 0, Chains.RightShoulderRightHand.size() - 1, JointHelpers::transformFromFirstToLastJointFrame(Chains.HipsSpine2, currentPos, target));
 
 		JointHelpers::modelToLocal(Chains.RightShoulderRightHand.size(), EveIKSolver->chainRef(0));
 		JointHelpers::ChainToAnim(Chains.RightShoulderRightHand, EveIKSolver->chainRef(0), currentPos);
@@ -509,6 +515,7 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 	Simulation::HoldHandWhileBlending("eve", "eveSkinnedModel");/* need update FromModelSpaceToWorld*/
 	Simulation::HoldHand("eve", "eveSkinnedModel");/* need update FromModelSpaceToWorld*/
 	Simulation::HoldToe("eve", "eveSkinnedModel"); 
+	EveAnimationGraph->getPlayingAnimation()->PostActions();
 	Simulation::EnterIntoWater("eve", "eveSkinnedModel");/* need update FromModelSpaceToWorld*/
 
 	FromModelSpaceToWorld = Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
@@ -516,6 +523,9 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 	GWorld.Capsules["eve"].getAB(capsuleA, capsuleB);
 
 	Simulation::GrabLedgeByHand(FromModelSpaceToWorld);
+
+	Simulation::LadderDetection();
+
 	Simulation::FallingAndHangOn(GWorld.Capsules["eve"].origin, capsuleA);
 	Simulation::StartBallisticFly(FromModelSpaceToWorld, SimpleMath::Vector3::Transform(SimpleMath::Vector3(1, 0, 0), GWorld.Capsules["eve"].orientation));
 	Simulation::FinishBallisticFly(GWorld.Capsules["eve"].getMatrix(), GWorld.Capsules["eve"].ab, GWorld.Capsules["eve"].r);

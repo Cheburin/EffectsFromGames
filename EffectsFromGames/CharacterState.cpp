@@ -40,10 +40,10 @@ bool state_idle = false;
 
 //1 ballistic fly /**/
 bool state_ballistic_fly_to_target = false;
-SimpleMath::Vector3 state_ballistic_fly_Start_Location;
+//SimpleMath::Vector3 state_ballistic_fly_Start_Location;
 SimpleMath::Vector3 state_ballistic_fly_Start_World_Location;
 
-SimpleMath::Vector3 state_ballistic_fly_Finish_Location;
+//SimpleMath::Vector3 state_ballistic_fly_Finish_Location;
 SimpleMath::Vector3 state_ballistic_fly_Finish_World_Location;
 
 bool state_BallisticFly_to_HangingIdle = false;

@@ -195,6 +195,8 @@ public:
 
 	int loop_counter;
 
+	int prev_loop_counter;
+
 	SimpleMath::Vector3 prev_translation;
 
 	SimpleMath::Vector3 begin_translation;

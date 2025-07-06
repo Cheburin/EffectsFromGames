@@ -3,6 +3,8 @@ SamplerState linearSampler : register( s0 );
 
 SamplerState pointSampler : register( s1 );
 
+Texture2D  texMaterial_M : register(t0);
+
 Texture2D  texNormal : register( t1 );
 
 TextureCube  texCube : register( t2 );
@@ -14,6 +16,8 @@ Texture2D  texColor1 : register( t4 );
 Texture2D  texColor2 : register( t5 );
 
 Texture2D  texDepth : register( t6 );
+
+Texture2D  texMaterial_N : register(t7);
 
 cbuffer cbPostProccess : register( b1 )
 {
@@ -42,6 +46,20 @@ void lighting_calculations(
     float4 litV = lit(dot(Ln,Nn),dot(Hn,Nn),0);
     
     ReflectiveLightColor = litV.y * LightColor + AmbiColor;
+}
+
+float3 lit_calculations(
+	float3 Light,
+	float3 Normal,
+	float3 View
+)
+{
+	float3 Ln = normalize(Light);
+	float3 Nn = normalize(Normal);
+	float3 Vn = normalize(View);
+	float3 Hn = normalize(Vn + Ln);
+
+	return float3(saturate(dot(Ln, Nn)), sign(saturate(dot(Ln, Nn))) * saturate(dot(Hn, Nn)), 0);
 }
 
 float3 decodeNormal(float4 normal){
@@ -219,24 +237,81 @@ Targets BOX_PS(
 	float3 normal     : TEXCOORD1,
 	float3 fragPos    : TEXCOORD2,
 	float3 lightPos   : TEXCOORD3,
+	float2 face_uv    : TEXCOORD4,
+
+	float3 lightTBN   : TEXCOORD5,
+	float3 viewTBN    : TEXCOORD6,
+
+	float2 face_size  : TEXCOORD7,
+
     float4 clip_pos   : SV_POSITION
 ):SV_TARGET
 { 
    Targets output;
 
-   float3 fragNormal = normalize(normal);
+   float3 Color = float3(.0, .0, .0);
 
-   float3 MaterialColor = float3(1.0,1.0,1.0);
+   float3 Normal = float3(.0, .0, .0);
+
+   float Noise = 0.;
+
+   float MatColor = 0.;
+
+   {
+	   float2 tex = face_uv*face_size;
+
+	   float tex_scale = 3. / 15.;
+
+	   Color = texMaterial_M.Sample(linearSampler, tex*tex_scale).y;
+
+	   Normal = decodeNormal(texMaterial_N.Sample(linearSampler, tex*2.0*tex_scale))*float3(0.3, 0.3, 1);
+
+	   Noise = lerp(0.4, 1.0, texMaterial_M.Sample(linearSampler, tex*20.0*tex_scale).x);
+   }
+
+   {
+	   MatColor = lerp(0.7, 1.0, lerp(Color, 0.5, 0.5)) * 0.5 * lerp(Noise, 1.0 - Noise, Color);
+   }
 
    float3 LightColor = float3(1.,1.,1.);
    float3 AmbiColor = float3(0.1,0.1,0.1);
 
-   float3 ReflectiveLightColor;
-   lighting_calculations(lightPos, fragPos, fragNormal, AmbiColor, LightColor, ReflectiveLightColor);
+   float3 lit = lit_calculations(lightTBN, Normal, viewTBN);
 
-   output.color = float4(clamp(ReflectiveLightColor * MaterialColor,0,1), 1);
+   output.color = float4(saturate((lit.x * LightColor + AmbiColor) * MatColor), 1);
 
    return output;
+};
+
+Targets LEDGE_BOX_PS(
+	float3 normal     : TEXCOORD1,
+	float3 fragPos    : TEXCOORD2,
+	float3 lightPos   : TEXCOORD3,
+	float2 face_uv    : TEXCOORD4,
+
+	float3 lightTBN   : TEXCOORD5,
+	float3 viewTBN    : TEXCOORD6,
+
+	float2 face_size : TEXCOORD7,
+
+	float4 clip_pos   : SV_POSITION
+	) :SV_TARGET
+{
+	Targets output;
+
+	float3 fragNormal = normalize(normal);
+
+	float3 MaterialColor = float3(1.0, 1.0, 1.0);
+
+	float3 LightColor = float3(1., 1., 1.);
+	float3 AmbiColor = float3(0.1, 0.1, 0.1);
+
+	float3 ReflectiveLightColor;
+	lighting_calculations(lightPos, fragPos, fragNormal, AmbiColor, LightColor, ReflectiveLightColor);
+
+	output.color = float4(clamp(ReflectiveLightColor * MaterialColor, 0, 1), 1);
+
+	return output;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,6 +319,13 @@ Targets BOX_GLOW_PS(
 	float3 normal     : TEXCOORD1,
 	float3 fragPos    : TEXCOORD2,
 	float3 lightPos   : TEXCOORD3,
+	float2 face_uv    : TEXCOORD4,
+
+	float3 lightTBN   : TEXCOORD5,
+	float3 viewTBN    : TEXCOORD6,
+
+	float2 face_size : TEXCOORD7,
+
     float4 clip_pos   : SV_POSITION
 ):SV_TARGET
 { 

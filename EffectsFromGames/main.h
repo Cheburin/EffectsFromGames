@@ -26,6 +26,8 @@
 
 #include "AppBuffers.h"
 
+#include "AnimationClasses.h"
+
 using namespace DirectX;
 extern char DebugBuffer[1024];
 void Debug();
@@ -112,6 +114,8 @@ public:
 
 	std::unique_ptr<DirectX::IEffect> box_effect;
 
+	std::unique_ptr<DirectX::IEffect> ledge_box_effect;
+
 	std::unique_ptr<DirectX::IEffect> box_glow_effect;
 
 	std::unique_ptr<DirectX::IEffect> blur_horizontal_effect;
@@ -163,6 +167,10 @@ public:
 	Microsoft::WRL::ComPtr<ID3D11InputLayout> dxtk_primitive_to_unlit_white_input_layout;
 
 	std::unique_ptr<DirectX::IEffect> unlit_white_effect;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> default_Material_Grid_M;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> default_Material_Grid_N;
 };
 
 class SwapChainGraphicResources {
@@ -204,49 +212,6 @@ struct TransformationFrame;
 struct CharacterSkelet;
 struct AnimationGraph;
 
-struct JointSQT{
-	DirectX::XMFLOAT4 X[3];
-	DirectX::XMFLOAT4& operator[](unsigned int index){
-		return X[index];
-	}
-	SimpleMath::Matrix matrix()
-	{
-		auto _S = SimpleMath::Matrix::CreateScale(X[0].x, X[0].y, X[0].z);
-		auto _Q = SimpleMath::Matrix::CreateFromQuaternion(SimpleMath::Quaternion(X[1].x, X[1].y, X[1].z, X[1].w));
-		auto _T = SimpleMath::Matrix::CreateTranslation(X[2].x, X[2].y, X[2].z);
-		return _S * _Q * _T;
-	}
-};
-
-struct AnimationBase
-{
-	virtual void sample(double elapsedTime){};
-
-	virtual void advanse(double elapsedTime, SimpleMath::Vector3& DeltaTranslation, SimpleMath::Quaternion& DeltaRotation) = 0;
-
-	virtual bool getPlaying() = 0;
-
-	virtual void setPlaying(bool value) = 0;
-
-	virtual bool isPlaying() = 0;
-
-	virtual void reset() = 0;
-
-	SimpleMath::Quaternion RootDeltaRotation;
-
-	SimpleMath::Quaternion RootSampledRotation;
-
-	std::vector<JointSQT> CurrentJoints;
-
-	std::vector<SimpleMath::Vector3> CurrentMetaChannels;
-
-	virtual ~AnimationBase();
-
-	virtual std::vector<JointSQT>& __AnimGetJointsByTime(float Time){ return CurrentJoints; };
-
-	virtual void SetBlendTime(double& blendTime, bool& blendRoot){ };
-};
-
 inline void fillSkeletonTransformFromJoint(AnimationBase* animation, CharacterSkelet *skelet)
 {
 	SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
@@ -255,38 +220,6 @@ inline void fillSkeletonTransformFromJoint(AnimationBase* animation, CharacterSk
 		(*GetSkeletonMatrix(skelet, i)) = animation->CurrentJoints[i].matrix();
 	}
 }
-
-struct Animation : public AnimationBase
-{
-	virtual void subscribe(char * eventName, std::function<void __cdecl(bool state)>) = 0;
-
-	virtual double getRate() = 0;
-
-	virtual void setRate(double speed) = 0;
-
-	virtual int getFrame() = 0;
-
-	virtual double getLocTime() = 0;
-
-	virtual void TransformMetaSamples(int channelId, std::function<SimpleMath::Vector4 __cdecl(SimpleMath::Vector4)> f) = 0;
-
-	virtual void TransformJointSamples(int jointId, char* sampleKind, std::function<SimpleMath::Vector4 __cdecl(SimpleMath::Vector4)> f) = 0;
-
-	virtual void setLooping(bool loop) = 0;
-
-	virtual bool IsLoop() = 0;
-
-	virtual ~Animation();
-};
-
-struct AnimationLinearBlend : public AnimationBase
-{
-	virtual SimpleMath::Vector3 getCurrentMeta(int channelId) = 0;
-	virtual SimpleMath::Vector3 getCurrentMetaOffset(int channelId) = 0;
-	virtual SimpleMath::Vector3 getCurrentJointTranslationOffset(int jointId) = 0;
-	virtual float getTimeRatio() = 0;
-	virtual ~AnimationLinearBlend();
-};
 
 struct Character
 {
@@ -437,8 +370,11 @@ struct JointHelpers
 {
 	static void AnimToChain(const std::vector<int> & chain, AnimationBase * Anim, std::vector<JointSQT> & Joints);
 	static void ChainToAnim(const std::vector<int> & chain, std::vector<JointSQT> & Joints, AnimationBase * Anim);
+	static void ChainToAnim(int StartIndex, int FinishIndex, const std::vector<int> & chain, std::vector<JointSQT> & Joints, AnimationBase * Anim);
 	static void localToModel(int Count, std::vector<JointSQT> & Joints);
 	static void modelToLocal(int Count, std::vector<JointSQT> & Joints);
+	static void localToModel(int StartIndex, int FinishIndex, std::vector<JointSQT> & Joints);
+	static void modelToLocal(int StartIndex, int FinishIndex, std::vector<JointSQT> & Joints);
 	static void fixJointRotation(SimpleMath::Vector3 oldDir, SimpleMath::Vector3 newDir, JointSQT & Joint);
 	static SimpleMath::Vector3 transformFromFirstToLastJointFrame(const std::vector<int> & indexChain, AnimationBase * anim, const SimpleMath::Vector3 & position);
 };
@@ -527,8 +463,8 @@ struct JointsRefsChainCollection
 struct IKSolverInterface
 {
 	virtual std::vector<JointSQT>& chainRef(int chain) = 0;
-	virtual void setChainSize(int chain, int size) = 0;
-	virtual void solve(int ChainSize, SimpleMath::Vector3 target, int total_iter = 10, float epsilon = 0.001f) = 0;
+	//virtual void setChainSize(int chain, int size) = 0;
+	virtual void solve(int index, int ChainStart, int ChainFinish, SimpleMath::Vector3 target, int total_iter = 10, float epsilon = 0.001f) = 0;
 	virtual ~IKSolverInterface();
 };
 
@@ -799,7 +735,8 @@ namespace Simulation
 	void AddLedge(const std::string& The_Ledge_Name, const Box& The_Ledge_Box, const int The_Ledge_BoxIndex);
 	void AutoKneeling(const SimpleMath::Matrix& FromModelSpaceToWorld);
 	void FallingAndHangOn(const SimpleMath::Vector3& CapsuleOrigin, const SimpleMath::Vector3& CapsuleA);
-	void GrabLedgeByHand(const SimpleMath::Matrix& FromModelSpaceToWorld);
+	void LadderDetection();
+	void GrabLedgeByHand(SimpleMath::Matrix& FromModelSpaceToWorld);
 	void EnterIntoWater(char* CapsuleName, char* ModelTransformName);
 	void HoldHand(char* CapsuleName, char* ModelTransformName);
 	void HoldToe(char* CapsuleName, char* ModelTransformName);
@@ -894,6 +831,12 @@ struct IClimbingPathHelper
 	virtual SimpleMath::Matrix GetEveModelMatrix() = 0;
 
 	virtual ~IClimbingPathHelper();
+
+	virtual void ResetPrevGlobalTime() = 0;
+
+	virtual bool IsSegmentChanging(){ return false; };
+
+	//virtual void PredictHands(Animation* Sender, SimpleMath::Vector3 DeltaTranslation, unsigned int channel, float CurrentAnimationTime, SimpleMath::Vector3 HandTargetLocation){ };
 };
 
 IClimbingPathHelper* MakeClimbingPathHelper();
@@ -996,4 +939,55 @@ struct TDeltaRotation
 			Rotation = SimpleMath::Quaternion::Concatenate(InverseDelta, Rotation);
 		}
 	}
+};
+
+struct TDeltaRotation2
+{
+	bool IsValid;
+
+	float RotationAngle;
+	SimpleMath::Vector3 RotationAxis;
+
+	SimpleMath::Quaternion Delta;
+	SimpleMath::Quaternion InverseDelta;
+
+	TDeltaRotation2(SimpleMath::Vector3 V1 = SimpleMath::Vector3::Zero, SimpleMath::Vector3 V2 = SimpleMath::Vector3::Zero) :InverseDelta(SimpleMath::Quaternion::Identity), Delta(SimpleMath::Quaternion::Identity)
+	{
+		V1.Normalize();
+		V2.Normalize();
+
+		RotationAxis = V1.Cross(V2);
+		RotationAngle = atan2(RotationAxis.Length(), V1.Dot(V2));
+
+		IsValid = !XMVector3Equal(RotationAxis, XMVectorZero());
+
+		if (IsValid)
+		{
+			Delta = SimpleMath::Quaternion::CreateFromAxisAngle(RotationAxis, RotationAngle);
+			InverseDelta = SimpleMath::Quaternion::CreateFromAxisAngle(RotationAxis, -RotationAngle);
+		}
+	}
+	void Add(DirectX::XMFLOAT4& Rotation)
+	{
+		Rotation = SimpleMath::Quaternion::Concatenate(Delta, Rotation);
+	}
+	void Substruct(DirectX::XMFLOAT4& Rotation)
+	{
+		Rotation = SimpleMath::Quaternion::Concatenate(InverseDelta, Rotation);
+	}
+	void Transform(DirectX::XMFLOAT4& To, DirectX::XMFLOAT4& From)
+	{
+		auto w = From.w;
+		auto A = SimpleMath::Vector3(SimpleMath::Vector4(From));
+		auto B = SimpleMath::Vector3(SimpleMath::Vector4(To));
+		To = SimpleMath::Vector4(A + SimpleMath::Vector3::Transform(B - A, Delta));
+		To.w = w;
+	}
+	//void Transform(DirectX::XMFLOAT4& Location)
+	//{
+	//	auto w = Location.w;
+	//	auto A = SimpleMath::Vector3(SimpleMath::Vector4(Location));
+	//	Location = SimpleMath::Vector4(SimpleMath::Vector3::Transform(A, Delta));
+	//	Location.w = w;
+	//}
 };

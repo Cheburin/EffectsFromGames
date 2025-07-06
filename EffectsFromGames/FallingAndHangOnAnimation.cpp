@@ -441,11 +441,11 @@ struct FallingAndHangOnAnimation : public Animation
 	{
 		if (RightHandTargetCatched)
 		{
-			EveIKSolver->solve(LoadChainForSolver(0, 3), RightHandJointPosition);
+			EveIKSolver->solve(0, 0, LoadChainForSolver(0, 3) - 1, RightHandJointPosition);
 		}
 		else
 		{
-			EveIKSolver->solve(LoadChainForSolver(0, 3), SimpleMath::Vector3::Transform(RightHandTarget, modelTransform.Invert()));
+			EveIKSolver->solve(0, 0, LoadChainForSolver(0, 3) - 1, SimpleMath::Vector3::Transform(RightHandTarget, modelTransform.Invert()));
 		}
 
 		SolvedChainToLocal(0, 3);
@@ -487,7 +487,7 @@ struct FallingAndHangOnAnimation : public Animation
 	}
 	void SolveLeftHandToTarget()
 	{
-		EveIKSolver->solve(LoadChainForSolver(1, 3), LeftHandJointPosition);
+		EveIKSolver->solve(0, 0, LoadChainForSolver(1, 3) - 1, LeftHandJointPosition);
 
 		SolvedChainToLocal(1, 3);
 	};

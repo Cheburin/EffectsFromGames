@@ -28,6 +28,10 @@ Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> 
 void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 
+extern bool state_ballistic_fly_to_target;
+extern bool state_BallisticFly_to_HangingIdle;
+extern bool state_BallisticFly_to_HangingIdleWithOutLeg;
+
 namespace Curve
 {
 	SimpleMath::Vector3 bezier(const SimpleMath::Vector3& a, const SimpleMath::Vector3& b, const SimpleMath::Vector3& c, const SimpleMath::Vector3& d, float t);
@@ -35,9 +39,16 @@ namespace Curve
 	float getTByS(const SimpleMath::Vector3& a, const SimpleMath::Vector3& b, const SimpleMath::Vector3& c, const SimpleMath::Vector3& d, float s);
 }
 
+namespace Simulation
+{
+	void EnableBallisticFlyIfNeeded(const SimpleMath::Matrix& FromModelSpaceToWorld, const SimpleMath::Vector3& origin, const SimpleMath::Vector3& forward);
+}
+
 struct JumpFromWallAnimation : public Animation
 {
-	Animation* Anim;
+	Animation* Anim_Current;
+
+	Animation* Anim_JumpForward;
 
 	AnimationRep* Impl;
 	
@@ -67,33 +78,33 @@ struct JumpFromWallAnimation : public Animation
 	{
 		Impl = new AnimationRep();
 
-		Anim = loadAnimation("Media\\Animations\\JumpForward.dae", FramesNamesIndex);
-		Anim->setRate(1);
-		Anim->setLooping(false);
-		extractAnimationMeta(Anim, true, .45f, getSkeletMatrix, calculateFramesTrans);
+		Anim_JumpForward = loadAnimation("Media\\Animations\\JumpForward.dae", FramesNamesIndex);
+		Anim_JumpForward->setRate(1);
+		Anim_JumpForward->setLooping(false);
+		extractAnimationMeta(Anim_JumpForward, true, .45f, getSkeletMatrix, calculateFramesTrans);
 
-		CurrentJoints = ::__AnimGetJointsByTime(Anim, 0.f);
+		CurrentJoints = ::__AnimGetJointsByTime(Anim_JumpForward, 0.f);
 	}
 
 	~JumpFromWallAnimation()
 	{
-		delete Anim;
+		delete Anim_JumpForward;
 
 		delete Impl;
 	}
 
 	std::vector<JointSQT>& __AnimGetJointsByTime(float Time)
 	{
-		return ::__AnimGetJointsByTime(Anim, Time);
+		return ::__AnimGetJointsByTime(Anim_Current, Time);
 	};
 
 	void advanse(double elapsedTime, SimpleMath::Vector3& DeltaTranslation, SimpleMath::Quaternion& DeltaRotation)
 	{
 		Impl->prev_frameNo = Impl->frameNo;
-		Anim->advanse(elapsedTime, SimpleMath::Vector3(), SimpleMath::Quaternion());
+		Anim_Current->advanse(elapsedTime, DeltaTranslation, DeltaRotation);
 
-		CurrentJoints = Anim->CurrentJoints;
-		CurrentMetaChannels = Anim->CurrentMetaChannels;
+		CurrentJoints = Anim_Current->CurrentJoints;
+		CurrentMetaChannels = Anim_Current->CurrentMetaChannels;
 
 		RootSampledRotation = SimpleMath::Quaternion(CurrentJoints[64][1]);
 		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
@@ -104,11 +115,14 @@ struct JumpFromWallAnimation : public Animation
 
 		//sprintf(DebugBuffer, "JumpFromWallAnim yaw %f Time %f\n", Quat().decompose0(CurrentJoints[64][1]).yaw0, Impl->global_time); Debug();
 
-		CurrentDistanceOnCurve += elapsedTime*ConstVelocityOnCurve;
-		const auto CurLocation = Curve::bezier(A, B, C, D, Curve::getTByS(A, B, C, D, CurrentDistanceOnCurve));
-		DeltaTranslation = CurLocation - PrevLocation;
-		DeltaRotation = SimpleMath::Quaternion::Identity;
-		PrevLocation = CurLocation;
+		if (!state_ballistic_fly_to_target)
+		{
+			CurrentDistanceOnCurve += elapsedTime*ConstVelocityOnCurve;
+			const auto CurLocation = Curve::bezier(A, B, C, D, Curve::getTByS(A, B, C, D, CurrentDistanceOnCurve));
+			DeltaTranslation = CurLocation - PrevLocation;
+			DeltaRotation = SimpleMath::Quaternion::Identity;
+			PrevLocation = CurLocation;
+		}
 
 		Impl->frameNo += 1;
 		Impl->global_time += elapsedTime;
@@ -124,7 +138,7 @@ struct JumpFromWallAnimation : public Animation
 	}
 	void setPlaying(bool value)
 	{
-		Anim->setPlaying(value);
+		Anim_Current->setPlaying(value);
 		if (Impl->playing != value)
 		{
 			Impl->playing = value;
@@ -176,12 +190,30 @@ struct JumpFromWallAnimation : public Animation
 		//auto Alfa = atan2(V1.Cross(V2).Length(), V1.Dot(V2));
 		//OppositeForward = SimpleMath::Quaternion::CreateFromAxisAngle(V1.Cross(V2), Alfa);
 		//sprintf(DebugBuffer, "JumpFromWallAnim Alfa %f\n", Alfa); Debug();
-		//sprintf(DebugBuffer, "FrameOfReference.Right() %f %f %f\n", FrameOfReference.Right().x, FrameOfReference.Right().y, FrameOfReference.Right().z); Debug();
+		sprintf(DebugBuffer, "FrameOfReference.Right() %f %f %f\n", -FrameOfReference.Right().x, -FrameOfReference.Right().y, -FrameOfReference.Right().z); Debug();
 		//std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index);
 		//HipsLocation = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[64][2];
 		Simulation::UpdateCapsuleRotation_SetParams(DeltaRotation.Delta, SimpleMath::Quaternion::CreateFromRotationMatrix(SimpleMath::Matrix(-FrameOfReference.Right(), FrameOfReference.Up(), -FrameOfReference.Backward())));
 
-		Anim->reset();
+		Anim_Current = Anim_JumpForward;
+		
+		{
+			const auto Frame = SimpleMath::Matrix(
+				SimpleMath::Vector4(x),
+				SimpleMath::Vector4(0, 1, 0, 0),
+				SimpleMath::Vector4(-z),
+				SimpleMath::Vector4(GWorld.Capsules["eve"].getMatrix().Translation().x, GWorld.Capsules["eve"].getMatrix().Translation().y, GWorld.Capsules["eve"].getMatrix().Translation().z, 1)
+			);
+
+			Simulation::EnableBallisticFlyIfNeeded(SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * Frame, GWorld.Capsules["eve"].origin, x);
+
+			if (state_ballistic_fly_to_target)
+			{
+				Anim_Current = static_cast<Animation*>(EveAnimationGraph->getAnimation("BallisticFly"));
+			}
+		}
+
+		Anim_Current->reset();
 
 		ConstVelocityOnCurve = Curve::arcLength(A, B, C, D, 1.f)/2.f;
 

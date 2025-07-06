@@ -25,6 +25,8 @@ extern Character* Eve;
 
 extern StaticObject * Pool;
 
+extern StaticObject * Ladder;
+
 extern IAnimationGraph2 * EveAnimationGraph;
 
 extern IKSolverInterface * EveIKSolver;
@@ -604,11 +606,14 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 		assert(GWorld.Ledges[GLedgesNames[i]].Boxes.size() == 1);
 		set_box_world_matrix(GWorld.Ledges[GLedgesNames[i]].Boxes[0].worldTransform);
 		set_scene_constant_buffer(context);
-		DrawQuad(context, G->box_effect.get(), [=]{
+		DrawQuad(context, G->ledge_box_effect.get(), [=]{
 			context->RSSetState(G->render_states->CullCounterClockwise());
 		});
 	}
-	
+
+	context->PSSetShaderResources(0, 1, shaderResourceViewToArray(G->default_Material_Grid_M.Get()));
+	context->PSSetShaderResources(7, 1, shaderResourceViewToArray(G->default_Material_Grid_N.Get()));
+
 	set_box_world_matrix(Matrix(GWorld.WorldTransforms["Ledges_Group_001"]));
 	set_scene_constant_buffer(context);
 	DrawQuad(context, G->box_effect.get(), [=]{
@@ -625,14 +630,15 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 	});
 
 	///render ground
+	context->PSSetShaderResources(3, 1, shaderResourceViewToArray(G->ground_texture.Get()));
+	context->PSSetShaderResources(1, 1, shaderResourceViewToArray(G->ground_normal_texture.Get()));
 	set_ground_world_matrix(Matrix::CreateTranslation(-0.5, -0.5, 0) * Matrix::CreateScale(5000, 5000, 5000) * Matrix::CreateRotationX(PI/2.0));
 	set_scene_constant_buffer(context);
 	DrawQuad(context, G->ground_effect.get(), [=]{
-		context->PSSetShaderResources(1, 1, shaderResourceViewToArray(G->ground_normal_texture.Get()));
-		context->PSSetShaderResources(3, 1, shaderResourceViewToArray(G->ground_texture.Get()));
-
 		context->RSSetState(G->render_states->CullNone());
 	});
+	context->PSSetShaderResources(3, 1, null);
+	context->PSSetShaderResources(1, 1, null);
 
 	///render box
 	set_box_world_matrix(Matrix(GWorld.WorldTransforms["box"]));
@@ -754,6 +760,20 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 	set_box_world_matrix(Matrix(GWorld.WorldTransforms["platform9"]));
 	set_scene_constant_buffer(context);
 	DrawQuad(context, G->box_effect.get(), [=]{
+		context->RSSetState(G->render_states->CullCounterClockwise());
+	});
+
+	///render platform10
+	set_box_world_matrix(Matrix(GWorld.WorldTransforms["platform10"]));
+	set_scene_constant_buffer(context);
+	DrawQuad(context, G->box_effect.get(), [=]{
+		context->RSSetState(G->render_states->CullCounterClockwise());
+	});
+
+	///render ladder
+	std_set_world_matrix(Matrix(GWorld.WorldTransforms["Ladder"]));
+	set_scene_constant_buffer(context);
+	drawFrames(Ladder->frame, context, G->std_lit_effect.get(), G->eve_input_layout.Get(), [=]{
 		context->RSSetState(G->render_states->CullCounterClockwise());
 	});
 

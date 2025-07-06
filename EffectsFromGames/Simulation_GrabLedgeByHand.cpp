@@ -24,6 +24,14 @@ extern SimpleMath::Vector3 state_hanging_Hand_Location;
 extern std::string state_hanging_Ledge_Name;
 extern Box state_hanging_Ledge_Box;
 extern int state_hanging_Ledge_BoxIndex;
+extern SimpleMath::Vector3 EveHandLocation[2];
+
+extern EvePath g_EvePath;
+
+extern std::string start_hanging_Ledge_Name;
+extern int start_hanging_Ledge_BoxIndex;
+
+SimpleMath::Vector4 vec4(SimpleMath::Vector3 v3, float w);
 
 namespace 
 {
@@ -61,11 +69,11 @@ namespace Simulation
 				GrabLedgesCount += 1;
 				state_hanging = true;
 
-				sprintf(DebugBuffer, "Simulation::GrabLedgeByHand Grab Ledge Hand_Name(%s) Ledge_Name(%s) Ledge_BoxIndex(%d) state_falling(%d)\n", 
+				sprintf(DebugBuffer, "Simulation::GrabLedgeByHand Grab Ledge Hand_Name(%s) Ledge_Name(%s) Ledge_BoxIndex(%d) state_falling(%d) Hand_Location(%f %f %f)\n", 
 					//FromModelSpaceToWorld._41, FromModelSpaceToWorld._42, FromModelSpaceToWorld._43, 
 					state_hanging_Hand_Name, 
 					&The_Ledge_Name[0],
-					The_Ledge_BoxIndex, state_falling); Debug();
+					The_Ledge_BoxIndex, state_falling, state_hanging_Hand_Location.x, state_hanging_Hand_Location.y, state_hanging_Hand_Location.z); Debug();
 
 				GrabLedges[i] = FGrabLedges(The_Ledge_Name, The_Ledge_Box, The_Ledge_BoxIndex);
 				return;
@@ -92,8 +100,49 @@ namespace Simulation
 		GrabLedges[index] = FGrabLedges();
 	}
 
-	void GrabLedgeByHand(const SimpleMath::Matrix& FromModelSpaceToWorld)
+	bool CheckHandIntoBox(const SimpleMath::Matrix& FromModelSpaceToWorld, char* HandName, const Box2& Ledge_Box, const SimpleMath::Vector3& A, const SimpleMath::Vector3& B, SimpleMath::Vector3& Hand_Location)
 	{
+		if (IsJointOrNestedJointsIntoBox(Eve, FromModelSpaceToWorld, HandName, 0, Ledge_Box))
+		{
+			Hand_Location = GetHandLocation(FromModelSpaceToWorld, HandName);
+
+			return true;
+		}
+		else
+		{
+			float t;
+
+			auto V = B - A;
+			if (Ledge_Box.Intersect(A, V, &t))
+			{
+				const auto a = A + t*V;
+				
+				Ledge_Box.Intersect(B, -V, &t);
+				const auto b = B - t*V;
+
+				Hand_Location = 0.5f*a + 0.5f*b;//A + t*V + SimpleMath::Vector3(0, -(1.f / 3.f * Ledge_Box.worldSize.y), 0);
+
+				sprintf(DebugBuffer, "|Simulation::GrabLedgeByHand::CheckHandIntoBox by Trace\n"); Debug();
+
+				g_EvePath.Count = 5;
+				g_EvePath.Pivots[0] = vec4(A, 1);
+				g_EvePath.Pivots[1] = vec4(A + t*V, 1);
+				g_EvePath.Pivots[2] = vec4(Hand_Location, 1);
+				g_EvePath.Pivots[3] = vec4(A + t*V, 1);
+				g_EvePath.Pivots[4] = vec4(B, 1);
+
+				return true;
+			};
+		}
+		return false;
+	}
+
+	void GrabLedgeByHand(SimpleMath::Matrix& FromModelSpaceToWorld)
+	{
+		//EveHandLocation[]
+		SimpleMath::Vector3 prev_EveHandLocation[2];
+		std::memcpy(prev_EveHandLocation, EveHandLocation, sizeof(EveHandLocation));
+		SimpleMath::Vector3 cur_EveHandLocation[2] = { GetHandLocation(FromModelSpaceToWorld, Hands[0]), GetHandLocation(FromModelSpaceToWorld, Hands[1]) };
 		//if (state_prevent_hanging)
 		//{
 			if (state_hanging)
@@ -117,10 +166,9 @@ namespace Simulation
 				const auto & Ledge_Boxes = Ledge_Iter->second.Boxes;
 				for (auto Ledge_Box_Iter = Ledge_Boxes.begin(); Ledge_Box_Iter != Ledge_Boxes.end(); Ledge_Box_Iter++){
 					for (int i = 0; i < 2; i++){
-						if (IsJointOrNestedJointsIntoBox(Eve, FromModelSpaceToWorld, Hands[i], 0, *Ledge_Box_Iter))
+						if (CheckHandIntoBox(FromModelSpaceToWorld, Hands[i], *Ledge_Box_Iter, prev_EveHandLocation[i], cur_EveHandLocation[i], state_hanging_Hand_Location))
 						{
 							state_hanging_Hand_Name = Hands[i];
-							state_hanging_Hand_Location = GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name);
 
 							state_hanging_Ledge_Name = Ledge_Iter->first;
 							state_hanging_Ledge_Box = *Ledge_Box_Iter;
@@ -132,13 +180,25 @@ namespace Simulation
 								state_hanging_Ledge_BoxIndex
 							);
 
+							//sprintf(DebugBuffer, "Simulation::GrabLedgeByHand Grab Ledge HandLocation == [%f %f %f]\n", state_hanging_Hand_Location.x, state_hanging_Hand_Location.y, state_hanging_Hand_Location.z); Debug();
 							//sprintf(DebugBuffer, "Simulation::GrabLedgeByHand Grab Ledge [%f %f %f] %s %s %d state_falling %d\n", FromModelSpaceToWorld._41, FromModelSpaceToWorld._42, FromModelSpaceToWorld._43, state_hanging_Hand_Name, &state_hanging_Ledge_Name[0], state_hanging_Ledge_BoxIndex, state_falling); Debug();
 							
+							//char* CurrentAnimName = EveAnimationGraph->getAnimationName();
+							//if (CurrentAnimName == "Left_Edge_Horizontal_Jump" || CurrentAnimName == "Right_Edge_Horizontal_Jump")
+							//{
+							if (start_hanging_Ledge_Name != state_hanging_Ledge_Name || start_hanging_Ledge_BoxIndex != state_hanging_Ledge_BoxIndex)
+							{
+								sprintf(DebugBuffer, "******************Simulation::GrabLedgeByHand******************\n"); Debug();
+								GWorld.Capsules["eve"].origin += state_hanging_Hand_Location - GetHandLocation(FromModelSpaceToWorld, state_hanging_Hand_Name);
+								FromModelSpaceToWorld = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix();
+							}
+
 							break;
 						}
 					}
 				}
 			}
 		}
+		std::memcpy(EveHandLocation, cur_EveHandLocation, sizeof(EveHandLocation));
 	}
 }

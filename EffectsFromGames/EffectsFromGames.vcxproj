@@ -395,9 +395,12 @@
   <ItemGroup>
     <ClCompile Include="Animation.cpp" />
     <ClCompile Include="AnimationBlend.cpp" />
+    <ClCompile Include="AnimationClasses.cpp" />
     <ClCompile Include="AnimationState.cpp" />
     <ClCompile Include="AnimationState2.cpp" />
+    <ClCompile Include="AnimationClasses.h" />
     <ClCompile Include="BallisticFlyAnimation.cpp" />
+    <ClCompile Include="BracedHangHopUpAnimation.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CharacterState.cpp" />
     <ClCompile Include="Collision.cpp" />
@@ -410,11 +413,13 @@
     <ClCompile Include="HandClimbingPath.cpp" />
     <ClCompile Include="IKSolver.cpp" />
     <ClCompile Include="JumpFromWallAnimation.cpp" />
+    <ClCompile Include="LadderAnimation.cpp" />
     <ClCompile Include="model.cpp" />
     <ClCompile Include="MsgProccess.cpp" />
     <ClCompile Include="Render.cpp" />
     <ClCompile Include="ShimmyAnimation.cpp" />
     <ClCompile Include="Simulation_HoldToe.cpp" />
+    <ClCompile Include="Simulation_Ladder.cpp" />
     <ClCompile Include="Simulation_UpdateCapsuleRotation.cpp" />
     <ClCompile Include="Simulation.cpp" />
     <ClCompile Include="Simulation_AutoKneeling.cpp" />

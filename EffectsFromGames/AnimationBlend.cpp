@@ -124,6 +124,11 @@ struct Animation3 : public AnimationLinearBlend
 			CurrentMetaChannels[i] = Impl->animation1->CurrentMetaChannels[i];
 	}
 
+	void PostActions()
+	{ 
+		Impl->animation2->PostActions();
+	};
+
 	void advanse(double elapsedTime, SimpleMath::Vector3& DeltaTranslation, SimpleMath::Quaternion& DeltaRotation)
 	{
 		Impl->prev_frameNo = Impl->frameNo;
