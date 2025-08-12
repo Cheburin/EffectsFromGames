@@ -25,7 +25,6 @@ extern SimpleMath::Vector3 state_ballistic_fly_Start_Location;
 Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
 Animation* loadAnimationFromBlender(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
 void AnimationSetJointT(Animation * anim, int JointNum, SimpleMath::Vector3 Translation);
-void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
 void rotateHips(Animation *, SimpleMath::Quaternion);
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 std::vector<SimpleMath::Vector3>& __AnimGetMetaByTime(AnimationBase* Anim, float Time);
@@ -219,8 +218,8 @@ struct EdgeHorizontalJumpAnimation : public Animation
 		CurrentJoints = CurrentPoseJoints; //CurrentPose->CurrentJoints;
 		CurrentMetaChannels = CurrentPoseMetaChannels; //CurrentPose->CurrentMetaChannels;
 
-		RootSampledRotation = SimpleMath::Quaternion(CurrentJoints[64][1]);
-		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
+		RootSampledRotation = SimpleMath::Quaternion(CurrentJoints[HipsJointIndex][1]);
+		CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(
 			RootDeltaRotation,
 			RootSampledRotation
 		);
@@ -355,23 +354,23 @@ struct EdgeHorizontalJumpAnimation : public Animation
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 TDeltaRotation GetHipsDelta(Animation* Anim1, Animation* Anim2)
 {
-	auto V1 = SimpleMath::Matrix::CreateFromQuaternion(__AnimGetJointsByTime(Anim1, 0.f)[64][1]).Forward();
-	auto V2 = SimpleMath::Matrix::CreateFromQuaternion(__AnimGetJointsByTime(Anim2, 0.f)[64][1]).Forward();
+	auto V1 = SimpleMath::Matrix::CreateFromQuaternion(__AnimGetJointsByTime(Anim1, 0.f)[HipsJointIndex][1]).Forward();
+	auto V2 = SimpleMath::Matrix::CreateFromQuaternion(__AnimGetJointsByTime(Anim2, 0.f)[HipsJointIndex][1]).Forward();
 	return TDeltaRotation(V1, V2);
 }
 
-void SetRelativeToBase(Animation* Pose, const TDeltaRotation& PoseYaw, SimpleMath::Quaternion& BasePoseYaw, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+void SetRelativeToBase(Animation* Pose, const TDeltaRotation& PoseYaw, SimpleMath::Quaternion& BasePoseYaw)
 {
 	//rotateHips(NextPose, InverseAbsolutePoseYaw); // вычитаем из hips NextPose поворот yaw Pose, те задаем поворот NextPose относительно Pose
 	
 	rotateHips(Pose, SimpleMath::Quaternion::Concatenate(PoseYaw.InverseDelta, Inverse(BasePoseYaw))); //теперь yaw NextPose равен нулю
 	BasePoseYaw = SimpleMath::Quaternion::Concatenate(PoseYaw.Delta, BasePoseYaw);
 
-	extractAnimationMeta(Pose, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(Pose, true, 1.0f);
 	//return DeltaHipsYaw;
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-Animation* CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, SimpleMath::Quaternion PoseYaw, std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+Animation* CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, SimpleMath::Quaternion PoseYaw, std::map<std::string, unsigned int> & FramesNamesIndex)
 {
 	//нам нужно переводить орентацию Hips в идентити, вычислим корректный Hips делта ротэйшин, потом его будет использовать аспект System_UpdateCupsuleRotation
 	char* PosePath[EdgeHorizontalJumpAnimation::PoseCount] =
@@ -401,7 +400,7 @@ Animation* CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, Simpl
 			{
 				FixAnimJointsOrientation(CurrentPose, (Animation*)EveAnimationGraph->getAnimation("TPose"));
 			}
-			extractAnimationMeta(CurrentPose, false, 1.0f, getSkeletMatrix, calculateFramesTrans);
+			extractAnimationMeta(CurrentPose, false, 1.0f);
 
 			rotateHips(CurrentPose, SimpleMath::Quaternion::Concatenate(Inverse(PoseYaw), SimpleMath::Quaternion::CreateFromRotationMatrix(SimpleMath::Matrix::CreateRotationY((IsLeft?-90.f:90.f)*PI / 180.0))));
 
@@ -419,7 +418,7 @@ Animation* CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, Simpl
 		{
 			auto CurrentPose = Poses[i];
 
-			SetRelativeToBase(CurrentPose, PosesYaws[i], BasePoseYaw, getSkeletMatrix, calculateFramesTrans);
+			SetRelativeToBase(CurrentPose, PosesYaws[i], BasePoseYaw);
 
 			BasePose = CurrentPose;
 		}
@@ -566,7 +565,7 @@ SimpleMath::Vector3 GetEdgeHorizontalJumpAnimation_ExtractStartLocation(EdgeHori
 
  	Anim->Poses[1]->reset();
  	Anim->Poses[1]->CurrentJoints = ::__AnimGetJointsByTime(Anim->Poses[1], .0f);
- 	Anim->Poses[1]->CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(Anim->DeltaHipsTargetRotation, Anim->Poses[1]->CurrentJoints[64][1]);
+	Anim->Poses[1]->CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(Anim->DeltaHipsTargetRotation, Anim->Poses[1]->CurrentJoints[HipsJointIndex][1]);
 
 	JointHelpers::AnimToChain(Anim->HandChain, Anim->Poses[1], ChainsJoints);
 	JointHelpers::localToModel(Anim->HandChain_Count, ChainsJoints);
@@ -586,7 +585,7 @@ SimpleMath::Vector3 GetEdgeHorizontalJumpAnimation_ExtractStartLocation(EdgeHori
 
 	const auto NewRot = ChainsJoints[Anim->HandChain_ArmIndex][1];
 	Anim->Poses[1]->TransformJointSamples(
-		Anim->bLeft?33:56,
+		Anim->HandChain[Anim->HandChain_ArmIndex],
 		"rotation",
 		[NewRot](SimpleMath::Vector4 v){
 			return NewRot;
@@ -652,7 +651,7 @@ bool GetEdgeHorizontalJumpAnimation_NextPose(IAnimationGraph2 * Graph, Animation
 	{
 		Anim->resetPosesStates();
 
-		Graph->getPlayingAnimation()->CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(Inverse(Anim->InitialPoseYaw), Graph->getPlayingAnimation()->CurrentJoints[64][1]);
+		Graph->getPlayingAnimation()->CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(Inverse(Anim->InitialPoseYaw), Graph->getPlayingAnimation()->CurrentJoints[HipsJointIndex][1]);
 		GWorld.Capsules["eve"].orientation = SimpleMath::Quaternion::Concatenate(Anim->InitialPoseYaw, GWorld.Capsules["eve"].orientation);
 
 		UpdateCapsuleRotation_SetParams(Anim);

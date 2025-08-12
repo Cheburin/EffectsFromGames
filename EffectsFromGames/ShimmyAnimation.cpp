@@ -45,7 +45,7 @@ struct HandClimbingState
 };
 
 Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex, char * replace = nullptr);
-void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
+void extractAnimationMeta(Animation * anim, bool extractHeight, double duration);
 extern SimpleMath::Vector3 gravitation;
 extern World GWorld;
 
@@ -160,7 +160,7 @@ struct ShimmyAnimation : public Animation
 		//}
 	}
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	ShimmyAnimation(bool MoveRight, std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+	ShimmyAnimation(bool MoveRight, std::map<std::string, unsigned int> & FramesNamesIndex)
 		:LeftHandState(Path), RightHandState(Path)
 	{
 		Impl = new AnimationRep();
@@ -168,14 +168,14 @@ struct ShimmyAnimation : public Animation
 		Shimmy = loadAnimation("Media\\Animations\\Edge\\Shimmy.dae", FramesNamesIndex);
 		Shimmy->setLooping(true);
 		Shimmy->setRate(MoveRight ? 1.0f : -1.0f);
-		extractAnimationMeta(Shimmy, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+		extractAnimationMeta(Shimmy, true, 1.0f);
 
 		BracedHangShimmy = loadAnimation("Media\\Animations\\Edge\\BracedHangShimmy.dae", FramesNamesIndex);
 		BracedHangShimmy->setLooping(true);
 		BracedHangShimmy->setRate(MoveRight ? 1.0f : -1.0f);
-		extractAnimationMeta(BracedHangShimmy, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+		extractAnimationMeta(BracedHangShimmy, true, 1.0f);
 
-		auto LoadAnimation1 = [](std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans, bool MoveRight, bool IsLooping, char * AnimationPath)
+		auto LoadAnimation1 = [](std::map<std::string, unsigned int> & FramesNamesIndex, bool MoveRight, bool IsLooping, char * AnimationPath)
 		{
 			void rotateHips(Animation *, SimpleMath::Quaternion);
 			Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
@@ -189,10 +189,10 @@ struct ShimmyAnimation : public Animation
 			////
 			Animation->setLooping(IsLooping);
 			Animation->setRate(MoveRight ? 1.f : -1.f);
-			extractAnimationMeta(Animation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+			extractAnimationMeta(Animation, true, 1.0f);
 			return Animation;
 		};
-		auto LoadAnimation2 = [](std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans, bool MoveRight, bool IsLooping, char * AnimationPath)
+		auto LoadAnimation2 = [](std::map<std::string, unsigned int> & FramesNamesIndex, bool MoveRight, bool IsLooping, char * AnimationPath)
 		{
 			void rotateHips(Animation *, SimpleMath::Quaternion);
 			Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
@@ -206,11 +206,11 @@ struct ShimmyAnimation : public Animation
 			////
 			Animation->setLooping(IsLooping);
 			Animation->setRate(MoveRight ? 1.f : -1.f);
-			extractAnimationMeta(Animation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+			extractAnimationMeta(Animation, true, 1.0f);
 			return Animation;
 		};
-		Corner_Inside_Hanging = LoadAnimation1(FramesNamesIndex, getSkeletMatrix, calculateFramesTrans, MoveRight, false, "Media\\Animations\\Edge\\Climb_Walk_Corner_Inside_Hanging_R1.FBX");
-		Corner_Outside_Hanging = LoadAnimation2(FramesNamesIndex, getSkeletMatrix, calculateFramesTrans, MoveRight, false, "Media\\Animations\\Edge\\Climb_Walk_Corner_Outside_Hanging_R2.FBX");
+		Corner_Inside_Hanging = LoadAnimation1(FramesNamesIndex, MoveRight, false, "Media\\Animations\\Edge\\Climb_Walk_Corner_Inside_Hanging_R1.FBX");
+		Corner_Outside_Hanging = LoadAnimation2(FramesNamesIndex, MoveRight, false, "Media\\Animations\\Edge\\Climb_Walk_Corner_Outside_Hanging_R2.FBX");
 
 		{
 			Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
@@ -218,14 +218,14 @@ struct ShimmyAnimation : public Animation
 			void AnimationSetJointT(Animation * anim, int JointNum, SimpleMath::Vector3 Translation);
 
 			Climb_Look_Idle_L = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_L.FBX", FramesNamesIndex);
-			extractAnimationMeta(Climb_Look_Idle_L, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+			extractAnimationMeta(Climb_Look_Idle_L, true, 1.0f);
 
 			Climb_Look_Idle_R = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_R.FBX", FramesNamesIndex);
-			extractAnimationMeta(Climb_Look_Idle_R, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+			extractAnimationMeta(Climb_Look_Idle_R, true, 1.0f);
 
 			Climb_Fold_Hands = loadAnimationFromBlender("Media\\Animations\\Edge\\Climb_Fold_Hands.dae", FramesNamesIndex);
-			AnimationSetJointT(Climb_Fold_Hands, 64, SimpleMath::Vector3(0, 24, 0));
-			extractAnimationMeta(Climb_Fold_Hands, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+			AnimationSetJointT(Climb_Fold_Hands, HipsJointIndex, SimpleMath::Vector3(0, 24, 0));
+			extractAnimationMeta(Climb_Fold_Hands, true, 1.0f);
 		}
 
 		MasterHandIndex = 0;
@@ -323,7 +323,7 @@ struct ShimmyAnimation : public Animation
 
 		auto IsSegmentChanging_Current = ClimbingPathHelper->IsSegmentChanging();
 
-		auto PathState_Next = ClimbingPathHelper->Advanse(this, AnimationTime, Impl->global_time, elapsedTime, MasterHandIndex, Hands[MasterHandIndex], SlaveHandIndex, Hands[SlaveHandIndex], CurrentJoints[64][1], DeltaRotation, DeltaTranslation);
+		auto PathState_Next = ClimbingPathHelper->Advanse(this, AnimationTime, Impl->global_time, elapsedTime, MasterHandIndex, Hands[MasterHandIndex], SlaveHandIndex, Hands[SlaveHandIndex], CurrentJoints[HipsJointIndex][1], DeltaRotation, DeltaTranslation);
 
 		auto IsSegmentChanging_Next = ClimbingPathHelper->IsSegmentChanging();
 
@@ -568,9 +568,9 @@ struct ShimmyAnimation : public Animation
 	}
 };
 
-Animation * createShimmyAnimation(bool MoveRight, std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+Animation * createShimmyAnimation(bool MoveRight, std::map<std::string, unsigned int> & FramesNamesIndex)
 {
-	return new ShimmyAnimation(MoveRight, FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	return new ShimmyAnimation(MoveRight, FramesNamesIndex);
 }
 
 //кастомный переход в айдловую анимацию

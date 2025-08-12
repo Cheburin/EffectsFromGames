@@ -363,59 +363,20 @@ public:
 		JointsTranslationSamples.resize(Count);
 	}
 
-	void extractHandsToMeta1AndMeta2(int RootJointIndex, int Hand0JointIndex, int Hand1JointIndex, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations)
-	{
-		JointSQT joint;
-
-		JointSamples& RootJointSamples = JointsTranslationSamples[RootJointIndex];
-
-		for (int jointIndex = 0; jointIndex < jointsCount; jointIndex++)
-		{
-			resetSampleIndex(jointIndex, 1);
-		}
-
-		for (int sampleIndex = 0; sampleIndex < RootJointSamples.X.size(); sampleIndex++)
-		{
-			auto time = RootJointSamples.X[sampleIndex].time;
-
-			//calculate pose into loc space at given time
-			for (int jointIndex = 0; jointIndex < jointsCount; jointIndex++)
-			{
-				getJointSQT(jointIndex, time, joint);
-				*getSkeletMatrix(jointIndex) = joint.matrix();
-			}
-
-			//pose to model space
-			calculateFramesTransformations();
-
-			auto Hand0Translation = getSkeletMatrix(Hand0JointIndex)->Translation();
-
-			auto Hand1Translation = getSkeletMatrix(Hand1JointIndex)->Translation();
-
-			//save x y z of root in model space to meta channel
-			MetaSamplesChannels[1].append(time, Hand0Translation.x, Hand0Translation.y, Hand0Translation.z, .0);
-
-			//save x y z of root in model space to meta channel
-			MetaSamplesChannels[2].append(time, Hand1Translation.x, Hand1Translation.y, Hand1Translation.z, .0);
-		}
-
-		for (int jointIndex = 0; jointIndex < jointsCount; jointIndex++)
-		{
-			resetSampleIndex(jointIndex, 1);
-		}
-	}
-
 	void SetMeta0ToZero()
 	{
 		MetaSamplesChannels[0].append(0.0, 0., 0., 0., 0.);
 		MetaSamplesChannels[0].append(1.0, 0., 0., 0., 0.);
 	}
 
-	void extractRootMotionToMeta0(int RootJointIndex, int Toe0JointIndex, int Toe1JointIndex, int ModelJointIndex, bool extractHeight, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations)
+	void extractMeta(bool extractHeight) //,std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations)
 	{
-		JointSQT joint;
+		std::vector<JointSQT> CharactersJoints, ChainsJoints;
 
-		JointSamples& RootJointSamples = JointsTranslationSamples[RootJointIndex];
+		CharactersJoints.resize(jointsCount);
+		ChainsJoints.resize(jointsCount);
+
+		JointSamples& RootJointSamples = JointsTranslationSamples[HipsJointIndex];
 
 		for (int jointIndex = 0; jointIndex < jointsCount; jointIndex++)
 		{
@@ -424,43 +385,41 @@ public:
 
 		for (int sampleIndex = 0; sampleIndex < RootJointSamples.X.size(); sampleIndex++)
 		{
-			auto time = RootJointSamples.X[sampleIndex].time;
+			auto time = RootJointSamples.X[sampleIndex].time; 
 
 			//calculate pose into loc space at given time
 			for (int jointIndex = 0; jointIndex < jointsCount; jointIndex++)
 			{
+				JointSQT joint;
 				getJointSQT(jointIndex, time, joint);
-				*getSkeletMatrix(jointIndex) = joint.matrix();
+				CharactersJoints[jointIndex] = joint;
 			}
 			
 			//pose to model space
-			calculateFramesTransformations();
+			auto HipsTranslation = 0.01f*SimpleMath::Vector3(SimpleMath::Vector4(RootJointSamples.X[sampleIndex].payload));
+			auto Toe0Translation = _getJointLocationByIndex_MS(CharactersJoints, jointsRefsChains[4], jointsRefsChains[4].size() - 1, ChainsJoints);
+			auto Toe1Translation = _getJointLocationByIndex_MS(CharactersJoints, jointsRefsChains[3], jointsRefsChains[3].size() - 1, ChainsJoints);
+			auto Hand0Translation = _getJointLocationByIndex_MS(CharactersJoints, jointsRefsChains[1], jointsRefsChains[1].size() - 1, ChainsJoints);
+			auto Hand1Translation = _getJointLocationByIndex_MS(CharactersJoints, jointsRefsChains[0], jointsRefsChains[0].size() - 1, ChainsJoints);
 
-			auto ModelRootTranslation = getSkeletMatrix(RootJointIndex)->Translation();
+			auto DeltaToeYTranslation = extractHeight?min(Toe0Translation.y, Toe1Translation.y):0.f;
 
-			auto ModelToe0Translation = getSkeletMatrix(Toe0JointIndex)->Translation();
+			HipsTranslation.y = DeltaToeYTranslation;
+			RootJointSamples.X[sampleIndex].payload.x = 0.0f;
+			RootJointSamples.X[sampleIndex].payload.y -= (1.f / 0.01f)*DeltaToeYTranslation;
+			RootJointSamples.X[sampleIndex].payload.z = 0.0f;
 
-			auto ModelToe1Translation = getSkeletMatrix(Toe1JointIndex)->Translation();
+			Hand0Translation -= HipsTranslation;
+			Hand1Translation -= HipsTranslation;
 
-			SimpleMath::Vector3 ModelToeTranslation = ModelToe1Translation;
-
-			if (ModelToe0Translation.y < ModelToe1Translation.y)
-			{
-				ModelToeTranslation = ModelToe0Translation;
-			}
-
-			auto fromModelToRootTransform = getSkeletMatrix(ModelJointIndex)->Invert();
-
-			auto ModelToeYTranslation = SimpleMath::Vector4(0, ModelToeTranslation.y, 0, 0);
-
-			//set x and z of root to zero at given time, offset y from toy
-			RootJointSamples.X[sampleIndex].payload.x = RootJointSamples.X[sampleIndex].payload.z = 0.0f;
-
-			if (extractHeight)
-				RootJointSamples.X[sampleIndex].payload = SimpleMath::Vector4(RootJointSamples.X[sampleIndex].payload) - SimpleMath::Vector4::Transform(ModelToeYTranslation, fromModelToRootTransform);
-			
 			//save x y z of root in model space to meta channel
-			MetaSamplesChannels[0].append(time, ModelRootTranslation.x, extractHeight?ModelToeTranslation.y:0.0f, ModelRootTranslation.z, .0);
+			MetaSamplesChannels[0].append(time, HipsTranslation.x, HipsTranslation.y, HipsTranslation.z, .0);
+
+			//save x y z of root in model space to meta channel
+			MetaSamplesChannels[1].append(time, Hand0Translation.x, Hand0Translation.y, Hand0Translation.z, .0);
+
+			//save x y z of root in model space to meta channel
+			MetaSamplesChannels[2].append(time, Hand1Translation.x, Hand1Translation.y, Hand1Translation.z, .0);
 		}
 
 		for (int jointIndex = 0; jointIndex < jointsCount; jointIndex++)

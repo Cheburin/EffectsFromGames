@@ -9,6 +9,7 @@ extern char DebugBuffer[1024];
 extern World GWorld;
 void Debug();
 
+extern bool state_movement_on_ladder;
 extern bool state_ballistic_fly_to_target;
 extern bool state_falling;
 extern bool state_falling_and_hang_on;
@@ -54,7 +55,7 @@ namespace Simulation
 
 		//eveTargetRotation = (-sign(dir.Cross(gForward).y)*acos(dir.Dot(gForward))) * 180.0 / PI;
 		//&& (ThirdPersonCameraMode || (FreeCameraMode && input_move.LengthSquared() != 0.0f))//&&
-		if (!state_falling && !state_jump && !state_jump_from_wall && !state_hanging && !state_climbing && !state_ballistic_fly_to_target)
+		if (!state_falling && !state_jump && !state_jump_from_wall && !state_hanging && !state_climbing && !state_ballistic_fly_to_target && !state_movement_on_ladder)
 		{
 			eveTargetRotation = DegFromDir(ProjectOnGround(desiredDirectionToTarget));
 			eveDeltaRotation = eveTargetRotation - eveCurrentRotation;

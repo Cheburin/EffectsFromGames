@@ -148,53 +148,6 @@ template<class T> typename T::second_type * extract_second_from_pairs(T * data, 
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct TransformationFrame
-{
-	TransformationFrame() :NextSibling(), FirstChild(), Parent(){}
-	std::string Name;
-	SimpleMath::Matrix Transformation;
-	TransformationFrame * NextSibling;
-	TransformationFrame * FirstChild;
-	TransformationFrame * Parent;
-
-	std::vector< DirectX::ModelMeshPart* > Meshes;
-	std::vector< std::vector<VertexPositionNormalTangentColorTextureSkinning2> > MeshesVertex;
-	std::vector< std::vector<UINT> > MeshesIndices;
-};
-
-struct CharacterSkelet
-{
-	CharacterSkelet() :TotalMatrix(), ReservMatrix(){};
-	std::map<std::string, unsigned int> FramesNamesIndex;
-	unsigned int TotalMatrix;
-	unsigned int ReservMatrix;
-	std::vector<SimpleMath::Matrix*> Transformation;
-	std::vector<SimpleMath::Matrix> BoneOffSetTransformation;
-	unsigned int findFrame(const std::string& name)
-	{
-		auto Iter = FramesNamesIndex.find(name);
-		if (FramesNamesIndex.end() != Iter)
-		{
-			return (*Iter).second;
-		}
-		else
-		{
-			unsigned int OldSize = TotalMatrix;
-			unsigned int NewSize = ++TotalMatrix;
-			FramesNamesIndex.insert(std::pair<std::string, unsigned int>(name, OldSize));
-			if (ReservMatrix <= NewSize)
-			{
-				ReservMatrix += 1024;
-				Transformation.reserve(ReservMatrix);
-				BoneOffSetTransformation.reserve(ReservMatrix);
-			}
-			Transformation.resize(NewSize);
-			BoneOffSetTransformation.resize(NewSize);
-			return OldSize;
-		}
-	}
-};
-
 Animation::~Animation()
 {
 
@@ -219,7 +172,7 @@ void collectFrames(const aiScene* scene, int level, aiNode * node)
 }
 */
 
-void collectFrames(ID3D11Device* device, CharacterSkelet * characterSkelet,  const aiScene* scene, int level, aiNode * node, TransformationFrame * parentFrame)
+void collectFrames(ID3D11Device* device, Character * characterSkelet, const aiScene* scene, int level, aiNode * node, TransformationFrame * parentFrame, char* replace = nullptr)
 {
 	TransformationFrame * LastChildren = 0;
 	for (int i = 0; i < node->mNumChildren; i++)
@@ -232,9 +185,10 @@ void collectFrames(ID3D11Device* device, CharacterSkelet * characterSkelet,  con
 		Frame->Transformation = aiMatrixToSimpleMathMatrix(ChildrenNode->mTransformation);
 		Frame->Name = ChildrenNode->mName.C_Str();
 
-		//index node matrix
-		if (characterSkelet)
-			characterSkelet->Transformation[characterSkelet->findFrame(Frame->Name)] = &(Frame->Transformation);
+		if (replace)
+		{
+			_replace(Frame->Name, replace, std::string(""));
+		}
 
 		//grab asimp mesh
 		for (int j = 0; j < ChildrenNode->mNumMeshes; j++){
@@ -264,7 +218,7 @@ void collectFrames(ID3D11Device* device, CharacterSkelet * characterSkelet,  con
 			std::vector<VertexPositionNormalTangentColorTextureSkinning2> __vertices;
 			std::vector<UINT> __indices;
 
-			auto FrameMesh = CreateModelMeshPart(device, [characterSkelet, Mesh, &__vertices, &__indices](std::vector<VertexPositionNormalTangentColorTextureSkinning2> & _vertices, std::vector<UINT> & _indices){
+			auto FrameMesh = CreateModelMeshPart(device, [replace, characterSkelet, Mesh, &__vertices, &__indices](std::vector<VertexPositionNormalTangentColorTextureSkinning2> & _vertices, std::vector<UINT> & _indices){
 				std::map<uint32_t, std::vector<std::pair<uint32_t, float> > > VerticesSkinInfo;
 
 				//proccess bones
@@ -272,8 +226,14 @@ void collectFrames(ID3D11Device* device, CharacterSkelet * characterSkelet,  con
 				{
 					auto MeshBone = Mesh->mBones[k];
 
+					std::string MeshBoneName = MeshBone->mName.C_Str();
+					if (replace)
+					{
+						_replace(MeshBoneName, replace, std::string(""));
+					}
+
 					//index Bone OffSet matrix( Offset Matrix )
-					unsigned int mBoneId = characterSkelet->findFrame(MeshBone->mName.C_Str());
+					unsigned int mBoneId = characterSkelet->findFrame(MeshBoneName);
 					characterSkelet->BoneOffSetTransformation[mBoneId] = aiMatrixToSimpleMathMatrix(MeshBone->mOffsetMatrix);
 
 					for (int z = 0; z < MeshBone->mNumWeights; z++)
@@ -390,23 +350,8 @@ void collectFrames(ID3D11Device* device, CharacterSkelet * characterSkelet,  con
 		LastChildren = Frame;
 
 		// deeper and deeper
-		collectFrames(device, characterSkelet, scene, level + 1, ChildrenNode, Frame);
+		collectFrames(device, characterSkelet, scene, level + 1, ChildrenNode, Frame, replace);
 	}
-}
-
-void disposeFrames(TransformationFrame * Frame)
-{
-	if (Frame->FirstChild)
-		disposeFrames(Frame->FirstChild);
-	if (Frame->NextSibling)
-		disposeFrames(Frame->NextSibling);
-
-	for (int i = 0; i < Frame->Meshes.size(); i++)
-	{
-		delete Frame->Meshes[i];
-	};
-
-	delete Frame;
 }
 
 void calculateFramesTransformations(TransformationFrame * Frame, SimpleMath::Matrix ParentTransformation)
@@ -416,14 +361,28 @@ void calculateFramesTransformations(TransformationFrame * Frame, SimpleMath::Mat
 		calculateFramesTransformations(Frame->FirstChild, Frame->Transformation);
 	if (Frame->NextSibling)
 		calculateFramesTransformations(Frame->NextSibling, ParentTransformation);
+};
+
+void calculateFramesTransformations(Character * CharacterObject, SimpleMath::Matrix ParentTransformation)
+{
+	for (int i = 0; i<CharacterObject->SocketsTransforms.size(); i++)
+	{
+		*CharacterObject->socketsTransformsRefs[i] = CharacterObject->SocketsTransforms[i];
+	}
+	calculateFramesTransformations(CharacterObject->frame, ParentTransformation);
 }
 
-void drawFrames(TransformationFrame * Frame, ID3D11DeviceContext* context, IEffect* effect, ID3D11InputLayout* inputLayout, std::function<void __cdecl()> setCustomState)
+void drawFrames(TransformationFrame * Frame, ID3D11DeviceContext* context, IEffect* effect, ID3D11InputLayout* inputLayout, std::function<void __cdecl()> setCustomState, std::function<void __cdecl(TransformationFrame * Frame)> onFrameWithMesh)
 {
 	if (Frame->FirstChild)
-		drawFrames(Frame->FirstChild, context, effect, inputLayout, setCustomState);
+		drawFrames(Frame->FirstChild, context, effect, inputLayout, setCustomState, onFrameWithMesh);
 	if (Frame->NextSibling)
-		drawFrames(Frame->NextSibling, context, effect, inputLayout, setCustomState);
+		drawFrames(Frame->NextSibling, context, effect, inputLayout, setCustomState, onFrameWithMesh);
+
+	if (onFrameWithMesh && Frame->Meshes.size())
+	{
+		onFrameWithMesh(Frame);
+	}
 
 	for (int i = 0; i < Frame->Meshes.size(); i++)
 	{
@@ -431,19 +390,19 @@ void drawFrames(TransformationFrame * Frame, ID3D11DeviceContext* context, IEffe
 	}
 }
 
-SimpleMath::Matrix* calculateAnimationPalite(CharacterSkelet * skelet)
+SimpleMath::Matrix* calculateAnimationPalite(Character * CharacterObject)
 {
 	static SimpleMath::Matrix palite[1024];
-	for (int i = 0; i < skelet->Transformation.size(); i++)
+	for (int i = 0; i < CharacterObject->framesTransformsRefs.size(); i++)
 	{
-		palite[i] = skelet->BoneOffSetTransformation[i] * (*(skelet->Transformation[i]));
+		palite[i] = CharacterObject->BoneOffSetTransformation[i] * (*(CharacterObject->framesTransformsRefs[i]));
 	}
 	return palite;
 }
 
-SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index)
+SimpleMath::Matrix* GetSkeletonMatrix(Character * CharacterObject, int index)
 {
-	return skelet->Transformation[index];
+	return CharacterObject->framesTransformsRefs[index];
 }
 
 TransformationFrame* findTransformationFrameByName(TransformationFrame * Frame, char * JointName)
@@ -557,12 +516,12 @@ void _getChain(TransformationFrame * Frame, std::map<std::string, unsigned int> 
 
 void GetChain(Character * character, char * JointName0, std::vector<int>& indexes)
 {
-	_getChain(findTransformationFrameByName(character->frame, JointName0), character->skelet->FramesNamesIndex, indexes);
+	_getChain(findTransformationFrameByName(character->frame, JointName0), character->skeleton->JointsIndex, indexes);
 }
 
 void GetChain(Character * character, char * JointName0, char * JointName1, std::vector<int>& indexes)
 {
-	_getChain(JointName0, findTransformationFrameByName(character->frame, JointName1), character->skelet->FramesNamesIndex, indexes);
+	_getChain(JointName0, findTransformationFrameByName(character->frame, JointName1), character->skeleton->JointsIndex, indexes);
 
 	std::reverse(indexes.begin(), indexes.end());
 }
@@ -571,9 +530,97 @@ SimpleMath::Vector3 GetTranslationFromTransformationFrame(TransformationFrame * 
 {
 	return Frame->Transformation.Translation();
 }
-SimpleMath::Vector3 GetCharacterJointTranslation(CharacterSkelet * characterSkelet, int Index)
+SimpleMath::Matrix GetFrameTransformation(TransformationFrame * Frame)
 {
-	return characterSkelet->Transformation[Index]->Translation();
+	return Frame->Transformation;
+}
+SimpleMath::Matrix GetFirstChildFrameTransformation(TransformationFrame * Frame)
+{
+	return Frame->FirstChild->Transformation;
+}
+void AddSiblingSocket(Character* CharacterObject, TransformationFrame * Frame, std::string name, SimpleMath::Matrix Transformation = SimpleMath::Matrix::Identity, std::map<std::string, SimpleMath::Matrix> innerFrameTransformation = std::map<std::string, SimpleMath::Matrix>())
+{
+	auto SocketFrame = new TransformationFrame();
+	SocketFrame->Name = name;
+	SocketFrame->Parent = Frame->Parent;
+	SocketFrame->Transformation = Transformation;
+	SocketFrame->socketsTransforms = innerFrameTransformation;
+
+	Frame->NextSibling = SocketFrame;
+
+	CharacterObject->skeleton->SocketsIndex.insert({ SocketFrame->Name, CharacterObject->socketsTransformsRefs.size() });
+	CharacterObject->socketsTransformsRefs.push_back(&SocketFrame->Transformation);
+	CharacterObject->SocketsTransforms.push_back(SocketFrame->Transformation);
+}
+void AddFirstChildSocket(Character* CharacterObject, TransformationFrame * Frame, std::string name, SimpleMath::Matrix Transformation = SimpleMath::Matrix::Identity, std::map<std::string, SimpleMath::Matrix> innerFrameTransformation = std::map<std::string, SimpleMath::Matrix>())
+{
+	auto SocketFrame = new TransformationFrame();
+	SocketFrame->Name = name;
+	SocketFrame->Parent = Frame;
+	SocketFrame->Transformation = Transformation;
+	SocketFrame->socketsTransforms = innerFrameTransformation;
+
+	Frame->FirstChild = SocketFrame;
+
+	CharacterObject->skeleton->SocketsIndex.insert({ SocketFrame->Name, CharacterObject->socketsTransformsRefs.size() });
+	CharacterObject->socketsTransformsRefs.push_back(&SocketFrame->Transformation);
+	CharacterObject->SocketsTransforms.push_back(SocketFrame->Transformation);
+}
+void attachSocket(Character* CharacterObject, char* socketName, char* destFrameName)
+{
+	auto foundSocket = findTransformationFrameByName(CharacterObject->frame, socketName);
+	auto foundFrame = findTransformationFrameByName(CharacterObject->frame, destFrameName);
+	auto socketTransformationIter = foundFrame->socketsTransforms.find(socketName);
+	if (socketTransformationIter != foundFrame->socketsTransforms.end())
+	{
+		auto SocketsNamesIndexIter = CharacterObject->skeleton->SocketsIndex.find(socketName);
+		if (SocketsNamesIndexIter != CharacterObject->skeleton->SocketsIndex.end())
+		{
+			foundSocket->Transformation = CharacterObject->SocketsTransforms[SocketsNamesIndexIter->second] = socketTransformationIter->second;
+		}
+	}
+	//detach
+	auto Parent = foundSocket->Parent;
+	if (foundSocket == Parent->FirstChild)
+	{
+		Parent->FirstChild = foundSocket->NextSibling;
+	}
+	else
+	{
+		auto CurrentItem = Parent->FirstChild;
+		TransformationFrame* PreviousItem = nullptr;
+		for (; CurrentItem != nullptr;)
+		{
+			if (CurrentItem == foundSocket)
+			{
+				PreviousItem->NextSibling = CurrentItem->NextSibling;
+				break;
+			}
+			PreviousItem = CurrentItem;
+			CurrentItem = CurrentItem->NextSibling;
+		}
+	}
+	//attach
+	if (foundFrame->FirstChild == nullptr)
+	{
+		foundFrame->FirstChild = foundSocket;
+	}
+	else
+	{
+		auto CurrentItem = foundFrame->FirstChild;
+		for (; CurrentItem->NextSibling != nullptr; CurrentItem = CurrentItem->NextSibling) { }
+		CurrentItem->NextSibling = foundSocket;
+	}
+	foundSocket->Parent = foundFrame;
+}
+void addSocketTransformation(Character* CharacterObject, char* frameName, std::pair<std::string, SimpleMath::Matrix> SocketTransformation)
+{
+	auto foundFrame = findTransformationFrameByName(CharacterObject->frame, frameName);
+	foundFrame->socketsTransforms.insert(SocketTransformation);
+}
+SimpleMath::Vector3 GetCharacterJointTranslation(Character * CharacterObject, int Index)
+{
+	return CharacterObject->framesTransformsRefs[Index]->Translation();
 }
 
 SimpleMath::Vector3 GetHandLocation(const SimpleMath::Matrix& FromModelSpaceToWorld, char* HandName)
@@ -585,7 +632,7 @@ SimpleMath::Vector3 GetHandLocation(const SimpleMath::Matrix& FromModelSpaceToWo
 SimpleMath::Vector3 GetHeadLocation(const SimpleMath::Matrix& FromModelSpaceToWorld)
 {
 	extern Character* Eve;
-	const auto HeadEndJointLocation = SimpleMath::Vector3::Transform(GetCharacterJointTranslation(Eve->skelet, 58), FromModelSpaceToWorld);
+	const auto HeadEndJointLocation = SimpleMath::Vector3::Transform(GetCharacterJointTranslation(Eve, HeadTopEndJointIndex), FromModelSpaceToWorld);
 	return HeadEndJointLocation;
 }
 
@@ -598,12 +645,7 @@ void UpdateEveCapsuleHeight(const SimpleMath::Matrix& FromModelSpaceToWorld)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 Animation* makeAnimationTransition(Animation* _animation1, Animation* _animation2, double local_duration, std::function<double __cdecl(double, double)> _BlendFunction, std::function<std::pair<SimpleMath::Vector3, SimpleMath::Vector3> __cdecl(double, Animation*, Animation*)> _AdvanseFunction);
 Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex, char * replace = nullptr);
-void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
-
-Character::~Character(){
-	delete skelet;
-	disposeFrames(frame);
-};
+void extractAnimationMeta(Animation * anim, bool extractHeight, double duration);
 
 StaticObject::~StaticObject(){
 	disposeFrames(frame);
@@ -744,7 +786,7 @@ StaticObject* loadStaticObject2(ID3D11Device* device, char * file_name)
 	return staticObject;
 }
 
-Character* loadCharacter(ID3D11Device* device, char * file_name)
+Character* loadCharacter(ID3D11Device* device, char * file_name, Skeleton& HumanSkeleton)
 {
 	Assimp::Importer importer;
 
@@ -758,19 +800,33 @@ Character* loadCharacter(ID3D11Device* device, char * file_name)
 	RootFrame->Transformation = aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation);
 	RootFrame->Name = scene->mRootNode->mName.C_Str();
 
-	auto characterSkelet = new CharacterSkelet();
-	//index node matrix
-	unsigned int matrixIndex = characterSkelet->findFrame(RootFrame->Name);
-	characterSkelet->Transformation[matrixIndex] = &(RootFrame->Transformation);
+	//auto characterSkelet = new CharacterSkelet();
+	auto characterSkelet = new Character(&HumanSkeleton);
 
-	collectFrames(device, characterSkelet, scene, 0, scene->mRootNode, RootFrame);
+	collectFrames(device, characterSkelet, scene, 0, scene->mRootNode, RootFrame, "mixamorig_");
 
-	auto ret = new Character();
+	characterSkelet->frame = RootFrame;
+	//ret->skelet = characterSkelet;
 
-	ret->frame = RootFrame;
-	ret->skelet = characterSkelet;
+	//bug: they not found into mesh bone collection, so manual added them
+	characterSkelet->findFrame("LeftHandThumb4");
+	characterSkelet->findFrame("LeftHandIndex4");
+	characterSkelet->findFrame("LeftHandMiddle4");
+	characterSkelet->findFrame("LeftHandRing4");
+	characterSkelet->findFrame("LeftHandPinky4");
+	characterSkelet->findFrame("RightHandThumb4");
+	characterSkelet->findFrame("RightHandIndex4");
+	characterSkelet->findFrame("RightHandMiddle4");
+	characterSkelet->findFrame("RightHandRing4");
+	characterSkelet->findFrame("RightHandPinky4");
+	characterSkelet->findFrame("LeftToe_End");
+	characterSkelet->findFrame("RightToe_End");
+	characterSkelet->findFrame("HeadTop_End");
+	///
 
-	return ret;
+	characterSkelet->fillFramesTransformsRefs();
+
+	return characterSkelet;
 }
 
 extern World GWorld;
@@ -817,15 +873,17 @@ ConsumeInputJump consumeInputJump;
 
 Animation * createFallingAndHangOnAnimation(std::map<std::string, unsigned int> & FramesNamesIndex);
 
-Animation * createShimmyAnimation(bool MoveRight, std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
+Animation * createShimmyAnimation(bool MoveRight, std::map<std::string, unsigned int> & FramesNamesIndex);
 
-Animation * CreateBallisticFlyAnimation(std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
+Animation * CreateBallisticFlyAnimation(std::map<std::string, unsigned int> & FramesNamesIndex);
 
-Animation * CreateJumpFromWallAnimation(std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
+Animation * CreateJumpFromWallAnimation(std::map<std::string, unsigned int> & FramesNamesIndex);
 
-Animation * CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, SimpleMath::Quaternion PoseYaw, std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
+Animation * CreateEdgeHorizontalJumpAnimation(bool IsLeft, Animation* Pose, SimpleMath::Quaternion PoseYaw, std::map<std::string, unsigned int> & FramesNamesIndex);
 
-Animation* CreateBracedHangHopUpAnimation(std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans);
+Animation* CreateBracedHangHopUpAnimation(std::map<std::string, unsigned int> & FramesNamesIndex);
+
+void CreateLadderAnimationAndRegisterIntoAnimationGraph(IAnimationGraph2 * Graph, std::map<std::string, unsigned int>& FramesNamesIndex);
 
 extern char DebugBuffer[1024];
 extern World GWorld;
@@ -868,41 +926,43 @@ AnimationBase** PackGroup(AnimationBase * a1, AnimationBase * a2)
 	return &ar[CicleIndex++ % 10][0];
 };
 
-void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet, TransformationFrame * frame)
+extern Animation* MannequinPose;
+
+void loadAnimations(IAnimationGraph2 * Graph, Skeleton* skeleton)
 {
-	auto EveInvertModelTransform = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]).Invert();
-	auto gravityInEveSystemCoordinates = SimpleMath::Vector3::Transform(gravitation, EveInvertModelTransform);
-	gravityInEveSystemCoordinates = gravitation;
+	//auto EveInvertModelTransform = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]).Invert();
+	//auto gravityInEveSystemCoordinates = SimpleMath::Vector3::Transform(gravitation, EveInvertModelTransform);
+	//gravityInEveSystemCoordinates = gravitation;
 
-	auto getSkeletMatrix = [characterSkelet](unsigned int index){return characterSkelet->Transformation[index]; };
-	auto calculateFramesTrans = [frame](){calculateFramesTransformations(frame, SimpleMath::Matrix::Identity); };
+	MannequinPose = loadAnimation("Media\\Characters\\Mannequin\\MaleStandingPose.dae", skeleton->JointsIndex, "mixamorig_");
+	extractAnimationMeta(MannequinPose, true, 1.0f);
 
-	auto TPose = loadAnimationFromBlender("Media\\Poses\\TPose.dae", characterSkelet->FramesNamesIndex);
-	extractAnimationMeta(TPose, false, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto TPose = loadAnimationFromBlender("Media\\Poses\\TPose.dae", skeleton->JointsIndex);
+	extractAnimationMeta(TPose, false, 1.0f);
 	Graph->registerAnimation("TPose", TPose);
 
-	auto walkingAnimation = loadAnimation("Media\\Animations\\Walking.dae", characterSkelet->FramesNamesIndex);
+	auto walkingAnimation = loadAnimation("Media\\Animations\\Walking.dae", skeleton->JointsIndex);
 	walkingAnimation->setRate(60 * .01 + 1.0 / 2.0);
-	extractAnimationMeta(walkingAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(walkingAnimation, true, 1.0f);
 	Graph->registerAnimation("walking", walkingAnimation);
 
-	auto idleAnimation = loadAnimation("Media\\Animations\\Idle.dae", characterSkelet->FramesNamesIndex);
+	auto idleAnimation = loadAnimation("Media\\Animations\\Idle.dae", skeleton->JointsIndex);
 	idleAnimation->setRate(1.0 / 16.0);
-	extractAnimationMeta(idleAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(idleAnimation, true, 1.0f);
 	Graph->registerAnimation("idle", idleAnimation);
 
-	auto jumpForwardAnimation = loadAnimation("Media\\Animations\\JumpForward.dae", characterSkelet->FramesNamesIndex);
+	auto jumpForwardAnimation = loadAnimation("Media\\Animations\\JumpForward.dae", skeleton->JointsIndex);
 	jumpForwardAnimation->setRate(1.0 / 2.0);
 	jumpForwardAnimation->setLooping(false);
 	//jumpForwardAnimation->AddOffset(-gravityInEveSystemCoordinates);
-	extractAnimationMeta(jumpForwardAnimation, true, .7f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(jumpForwardAnimation, true, .7f);
 	Graph->registerAnimation("jump_forward", jumpForwardAnimation);
 
-	auto jumpUpAnimation = loadAnimation("Media\\Animations\\JumpUp.dae", characterSkelet->FramesNamesIndex);
+	auto jumpUpAnimation = loadAnimation("Media\\Animations\\JumpUp.dae", skeleton->JointsIndex);
 	jumpUpAnimation->setRate(1.0 / 2.0f);// 2.0f);
 	jumpUpAnimation->setLooping(false);
 	//jumpUpAnimation->AddOffset(-gravityInEveSystemCoordinates);
-	extractAnimationMeta(jumpUpAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(jumpUpAnimation, true, 1.0f);
 	jumpUpAnimation->TransformMetaSamples(
 		0,
 		[](SimpleMath::Vector4 v){
@@ -911,99 +971,99 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	});
 	Graph->registerAnimation("jump_up", jumpUpAnimation);
 
-	auto Climb = loadAnimation("Media\\Animations\\Climbing.dae", characterSkelet->FramesNamesIndex);
+	auto Climb = loadAnimation("Media\\Animations\\Climbing.dae", skeleton->JointsIndex);
 	Climb->setRate(1.0 / 4.0);
 	Climb->setLooping(false);
 	//Climb->AddOffset(-gravityInEveSystemCoordinates);
-	extractAnimationMeta(Climb, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(Climb, true, 1.0f);
 	Graph->registerAnimation("climbing", Climb);
 
-	auto bracedHangHopUpAnimation = CreateBracedHangHopUpAnimation(characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	auto bracedHangHopUpAnimation = CreateBracedHangHopUpAnimation(skeleton->JointsIndex);
 	Graph->registerAnimation("braced_hang_hop_up", bracedHangHopUpAnimation);
 
-	auto fallingIdleAnimation = loadAnimation("Media\\Animations\\FallingIdle.dae", characterSkelet->FramesNamesIndex);
+	auto fallingIdleAnimation = loadAnimation("Media\\Animations\\FallingIdle.dae", skeleton->JointsIndex);
 	fallingIdleAnimation->setRate(1.0 / 2.0f);
-	extractAnimationMeta(fallingIdleAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(fallingIdleAnimation, true, 1.0f);
 	Graph->registerAnimation("falling_idle", fallingIdleAnimation);
 
-	auto treadingWaterAnimation = loadAnimation("Media\\Animations\\TreadingWater.dae", characterSkelet->FramesNamesIndex);
+	auto treadingWaterAnimation = loadAnimation("Media\\Animations\\TreadingWater.dae", skeleton->JointsIndex);
 	treadingWaterAnimation->setRate(1.0 / 4.5f);
 	//treadingWaterAnimation->AddOffset(-gravityInEveSystemCoordinates);
-	extractAnimationMeta(treadingWaterAnimation, false, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(treadingWaterAnimation, false, 1.0f);
 	Graph->registerAnimation("treading_water", treadingWaterAnimation);
 
-	auto swimmingAnimation = loadAnimation("Media\\Animations\\Swimming.dae", characterSkelet->FramesNamesIndex);
+	auto swimmingAnimation = loadAnimation("Media\\Animations\\Swimming.dae", skeleton->JointsIndex);
 	swimmingAnimation->setRate(1.0 / 4.533f);
 	//swimmingAnimation->AddOffset(-gravityInEveSystemCoordinates);
 	swimmingAnimation->TransformJointSamples(
-		64,
+		HipsJointIndex,
 		"translation",
 		[](SimpleMath::Vector4 v){
 		v = SimpleMath::Vector4(v.x, v.y + 35.0f, v.z, 0);
 		return v;
 	});
-	extractAnimationMeta(swimmingAnimation, false, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(swimmingAnimation, false, 1.0f);
 	Graph->registerAnimation("swimming", swimmingAnimation);
 
 	auto takeItAnimation = makeAnimationPose();
 	Graph->registerAnimation("take_it_pose", takeItAnimation);
 
-	auto FreehangClimb = loadAnimation("Media\\Animations\\FreehangClimb.dae", characterSkelet->FramesNamesIndex);
+	auto FreehangClimb = loadAnimation("Media\\Animations\\FreehangClimb.dae", skeleton->JointsIndex);
 	FreehangClimb->setLooping(false);
 	//FreehangClimb->AddOffset(-gravityInEveSystemCoordinates);
 	FreehangClimb->setRate(1.0 / 5.0f);
-	extractAnimationMeta(FreehangClimb, true, 1.f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(FreehangClimb, true, 1.f);
 	Graph->registerAnimation("Freehang_Climb", FreehangClimb);
 
-	auto Kneeling = loadAnimation("Media\\Animations\\Kneeling.dae", characterSkelet->FramesNamesIndex);
-	extractAnimationMeta(Kneeling, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto Kneeling = loadAnimation("Media\\Animations\\Kneeling.dae", skeleton->JointsIndex);
+	extractAnimationMeta(Kneeling, true, 1.0f);
 	Graph->registerAnimation("Kneeling", Kneeling);
 
-	auto CrouchedWalking = loadAnimation("Media\\Animations\\CrouchedWalking.dae", characterSkelet->FramesNamesIndex);
-	extractAnimationMeta(CrouchedWalking, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto CrouchedWalking = loadAnimation("Media\\Animations\\CrouchedWalking.dae", skeleton->JointsIndex);
+	extractAnimationMeta(CrouchedWalking, true, 1.0f);
 	Graph->registerAnimation("Crouched_Walking", CrouchedWalking);
 
-	auto FallingAndHangOn = createFallingAndHangOnAnimation(characterSkelet->FramesNamesIndex);
+	auto FallingAndHangOn = createFallingAndHangOnAnimation(skeleton->JointsIndex);
 	Graph->registerAnimation("FallingAndHangOn", FallingAndHangOn);
 
-	auto RightShimmy = createShimmyAnimation(true, characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	auto RightShimmy = createShimmyAnimation(true, skeleton->JointsIndex);
 	Graph->registerAnimation("RightShimmy", RightShimmy);
 
-	auto LeftShimmy = createShimmyAnimation(false, characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	auto LeftShimmy = createShimmyAnimation(false, skeleton->JointsIndex);
 	Graph->registerAnimation("LeftShimmy", LeftShimmy);
 	
-	auto BallisticFly = CreateBallisticFlyAnimation(characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	auto BallisticFly = CreateBallisticFlyAnimation(skeleton->JointsIndex);
 	Graph->registerAnimation("BallisticFly", BallisticFly);
 
-	auto Climb_Look_Idle_L = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_L.FBX", characterSkelet->FramesNamesIndex);
-	extractAnimationMeta(Climb_Look_Idle_L, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto Climb_Look_Idle_L = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_L.FBX", skeleton->JointsIndex);
+	extractAnimationMeta(Climb_Look_Idle_L, true, 1.0f);
 	auto Climb_Look_Idle_L_Delta_Rotation = __AnimSubstructRootDeltaRotation(Climb_Look_Idle_L);
 	Graph->registerAnimation("Climb_Look_Idle_L", Climb_Look_Idle_L);
 
-	auto Climb_Look_Idle_R = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_R.FBX", characterSkelet->FramesNamesIndex);
-	extractAnimationMeta(Climb_Look_Idle_R, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto Climb_Look_Idle_R = loadAnimationFromUnreal("Media\\Animations\\Edge\\Climb_Look_Idle_R.FBX", skeleton->JointsIndex);
+	extractAnimationMeta(Climb_Look_Idle_R, true, 1.0f);
 	auto Climb_Look_Idle_R_Delta_Rotation = __AnimSubstructRootDeltaRotation(Climb_Look_Idle_R);
 	Graph->registerAnimation("Climb_Look_Idle_R", Climb_Look_Idle_R);
 
-	auto JumpFromWall = CreateJumpFromWallAnimation(characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	auto JumpFromWall = CreateJumpFromWallAnimation(skeleton->JointsIndex);
 	Graph->registerAnimation("JumpFromWall", JumpFromWall);
 	//AnimationBase* ShimmyAnimationGetDebugAnimation(AnimationBase *animation);
 	//auto DebugAnimation = ShimmyAnimationGetDebugAnimation(LeftShimmy);
 	//Graph->registerAnimation("DebugAnimation", DebugAnimation);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	auto Hanging_Idle_WithOut_Leg = loadAnimation("Media\\Animations\\Edge\\HangingIdleWithOutLeg.dae", characterSkelet->FramesNamesIndex);
-	extractAnimationMeta(Hanging_Idle_WithOut_Leg, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto Hanging_Idle_WithOut_Leg = loadAnimation("Media\\Animations\\Edge\\HangingIdleWithOutLeg.dae", skeleton->JointsIndex);
+	extractAnimationMeta(Hanging_Idle_WithOut_Leg, true, 1.0f);
 	Graph->registerAnimation("Hanging_Idle_WithOut_Leg", Hanging_Idle_WithOut_Leg);
 
-	auto Jump_To_Hang_WithOut_Leg = loadAnimation("Media\\Animations\\JumpToHangWithOutLeg.dae", characterSkelet->FramesNamesIndex);
+	auto Jump_To_Hang_WithOut_Leg = loadAnimation("Media\\Animations\\JumpToHangWithOutLeg.dae", skeleton->JointsIndex);
 	Jump_To_Hang_WithOut_Leg->setLooping(false);
 	Jump_To_Hang_WithOut_Leg->setRate(2.0);
-	extractAnimationMeta(Jump_To_Hang_WithOut_Leg, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(Jump_To_Hang_WithOut_Leg, true, 1.0f);
 	Graph->registerAnimation("Jump_To_Hang_WithOut_Leg", Jump_To_Hang_WithOut_Leg);
 
 	////
-	auto Hanging_Idle_With_Leg = loadAnimation("Media\\Animations\\HangingIdleWithLeg.dae", characterSkelet->FramesNamesIndex);
-	extractAnimationMeta(Hanging_Idle_With_Leg, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto Hanging_Idle_With_Leg = loadAnimation("Media\\Animations\\HangingIdleWithLeg.dae", skeleton->JointsIndex);
+	extractAnimationMeta(Hanging_Idle_With_Leg, true, 1.0f);
 	Graph->registerAnimation("Hanging_Idle_With_Leg", Hanging_Idle_With_Leg);
 
 	/*нужно взять одну позу, сделать из них две на время бленда(что то похожее есть в баллистик флайте)*/
@@ -1012,23 +1072,22 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 	Jump_To_Hang_With_Leg->CurrentMetaChannels = Hanging_Idle_With_Leg->CurrentMetaChannels;
 	Graph->registerAnimation("Jump_To_Hang_With_Leg", Jump_To_Hang_With_Leg);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	auto ActionPose_Release_And_Go_Down = loadAnimationFromBlender("Media\\Animations\\ActionPose_Release_And_Go_Down.dae", characterSkelet->FramesNamesIndex);
-	AnimationSetJointT(ActionPose_Release_And_Go_Down, 64, SimpleMath::Vector3(0, 80, 0));
-	extractAnimationMeta(ActionPose_Release_And_Go_Down, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto ActionPose_Release_And_Go_Down = loadAnimationFromBlender("Media\\Animations\\ActionPose_Release_And_Go_Down.dae", skeleton->JointsIndex);
+	AnimationSetJointT(ActionPose_Release_And_Go_Down, HipsJointIndex, SimpleMath::Vector3(0, 80, 0));
+	extractAnimationMeta(ActionPose_Release_And_Go_Down, true, 1.0f);
 	Graph->registerAnimation("ActionPose_Release_And_Go_Down", ActionPose_Release_And_Go_Down);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	auto Climb_Fold_Hands = loadAnimationFromBlender("Media\\Animations\\Edge\\Climb_Fold_Hands.dae", characterSkelet->FramesNamesIndex);
-	AnimationSetJointT(Climb_Fold_Hands, 64, SimpleMath::Vector3(0, 24, 0));
-	extractAnimationMeta(Climb_Fold_Hands, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	auto Climb_Fold_Hands = loadAnimationFromBlender("Media\\Animations\\Edge\\Climb_Fold_Hands.dae", skeleton->JointsIndex);
+	AnimationSetJointT(Climb_Fold_Hands, HipsJointIndex, SimpleMath::Vector3(0, 24, 0));
+	extractAnimationMeta(Climb_Fold_Hands, true, 1.0f);
 	Graph->registerAnimation("Climb_Fold_Hands", Climb_Fold_Hands);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	auto Left_Edge_Horizontal_Jump = CreateEdgeHorizontalJumpAnimation(true, Climb_Look_Idle_L, Climb_Look_Idle_L_Delta_Rotation, characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	auto Left_Edge_Horizontal_Jump = CreateEdgeHorizontalJumpAnimation(true, Climb_Look_Idle_L, Climb_Look_Idle_L_Delta_Rotation, skeleton->JointsIndex);
 	Graph->registerAnimation("Left_Edge_Horizontal_Jump", Left_Edge_Horizontal_Jump);
-	auto Right_Edge_Horizontal_Jump = CreateEdgeHorizontalJumpAnimation(false, Climb_Look_Idle_R, Climb_Look_Idle_R_Delta_Rotation, characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	auto Right_Edge_Horizontal_Jump = CreateEdgeHorizontalJumpAnimation(false, Climb_Look_Idle_R, Climb_Look_Idle_R_Delta_Rotation, skeleton->JointsIndex);
 	Graph->registerAnimation("Right_Edge_Horizontal_Jump", Right_Edge_Horizontal_Jump);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	void CreateLadderAnimationAndRegisterIntoAnimationGraph(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet, TransformationFrame * frame);
-	CreateLadderAnimationAndRegisterIntoAnimationGraph(Graph, characterSkelet, frame);
+	CreateLadderAnimationAndRegisterIntoAnimationGraph(Graph, skeleton->JointsIndex);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	Climb_Look_Idle_R->subscribe("onPlayingChanged", [RightShimmy](bool state){
 		if (state)
@@ -1636,15 +1695,16 @@ void loadAnimations(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet,
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	auto _DebugAnimation = loadAnimationFromBlender("Media\\Animations\\Edge\\Edge_Right_Horizontal_Jump_Pose_1.dae", characterSkelet->FramesNamesIndex);
+	auto _DebugAnimation = loadAnimationFromBlender("Media\\Animations\\Pistol\\Equip.dae", skeleton->JointsIndex);
 
 	//AnimationSetJointT(_DebugAnimation, 64, SimpleMath::Vector3(0,80,0));
 	//rotateHips(_DebugAnimation, SimpleMath::Quaternion::CreateFromRotationMatrix(SimpleMath::Matrix::CreateRotationY(.0f*PI / 180.0)));
-	FixAnimJointsOrientation(_DebugAnimation, TPose);
-
-	extractAnimationMeta(_DebugAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
-
+	//FixAnimJointsOrientation(_DebugAnimation, TPose);
+	_DebugAnimation->setRate(1.5f);
+	_DebugAnimation->setLooping(false);
+	extractAnimationMeta(_DebugAnimation, true, 1.0f);
 	_DebugAnimation->reset();
+	//_DebugAnimation->setPlaying(true);
 
 	DebugAnimation = _DebugAnimation;
 }

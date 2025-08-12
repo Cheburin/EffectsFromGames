@@ -9,7 +9,6 @@
 #include <locale> 
 
 #include "AnimationImpl.h"
-
 #undef min // use __min instead
 #undef max // use __max instead
 
@@ -22,7 +21,6 @@ void Debug();
 
 Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex, char * replace = nullptr);
 Animation* loadAnimationFromBlender(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
-void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 std::vector<SimpleMath::Vector3>& __AnimGetMetaByTime(AnimationBase* Anim, float Time);
 SimpleMath::Quaternion __AnimSubstructRootDeltaRotation(AnimationBase* Anim);
@@ -36,40 +34,7 @@ extern IAnimationGraph2 * EveAnimationGraph;
 
 extern SimpleMath::Vector3 LadderSize;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-struct CharacterSkelet
-{
-	CharacterSkelet() :TotalMatrix(), ReservMatrix(){};
-	std::map<std::string, unsigned int> FramesNamesIndex;
-	unsigned int TotalMatrix;
-	unsigned int ReservMatrix;
-	std::vector<SimpleMath::Matrix*> Transformation;
-	std::vector<SimpleMath::Matrix> BoneOffSetTransformation;
-	unsigned int findFrame(const std::string& name)
-	{
-		auto Iter = FramesNamesIndex.find(name);
-		if (FramesNamesIndex.end() != Iter)
-		{
-			return (*Iter).second;
-		}
-		else
-		{
-			unsigned int OldSize = TotalMatrix;
-			unsigned int NewSize = ++TotalMatrix;
-			FramesNamesIndex.insert(std::pair<std::string, unsigned int>(name, OldSize));
-			if (ReservMatrix <= NewSize)
-			{
-				ReservMatrix += 1024;
-				Transformation.reserve(ReservMatrix);
-				BoneOffSetTransformation.reserve(ReservMatrix);
-			}
-			Transformation.resize(NewSize);
-			BoneOffSetTransformation.resize(NewSize);
-			return OldSize;
-		}
-	}
-};
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-extern bool state_climbing;
 bool state_movement_on_ladder = false;
 const double LadderAnimation_BlendTime = 0.99f;
 extern SimpleMath::Vector2 input_move;
@@ -102,7 +67,10 @@ struct LadderAnimation : public AnimationWithImpl
 
 	int CurrentPoseIndex;
 
-	int prev_input;
+	float prev_input;
+	double prev_rate;
+
+	int CurrentPose3_Sign;
 
 	SimpleMath::Vector3 Pose3HoldHand;
 	float Pose3Time;
@@ -110,19 +78,22 @@ struct LadderAnimation : public AnimationWithImpl
 	int Pose3LadderItemIndex;
 	SimpleMath::Vector3 Pose3HandConstOffset;
 	SimpleMath::Plane Pose3CharacterLadderPlane;
+	SimpleMath::Vector3 Pose3CharacterLadderItemDirection;
+	float Pose3CharacterLeftHandLadderItemCoord;
+	float Pose3CharacterRightHandLadderItemCoord;
 
-	LadderAnimation(std::map<std::string, unsigned int>& FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+	LadderAnimation(std::map<std::string, unsigned int>& FramesNamesIndex)
 	{
 		Poses[0].reset(loadAnimation("Media\\Animations\\Kneeling.dae", FramesNamesIndex));
-		extractAnimationMeta(Poses[0].get(), true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+		extractAnimationMeta(Poses[0].get(), true, 1.0f);
 		__AnimSubstructRootDeltaRotation(Poses[0].get());
 
 		Poses[1].reset(loadAnimationFromBlender("Media\\Animations\\Ladder\\Ladder01.dae", FramesNamesIndex)); //ClimbingLadder.dae
-		extractAnimationMeta(Poses[1].get(), true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+		extractAnimationMeta(Poses[1].get(), true, 1.0f);
 		__AnimSubstructRootDeltaRotation(Poses[1].get());
 
 		Poses[2].reset(loadAnimation("Media\\Animations\\Ladder\\ClimbingLadder.dae", FramesNamesIndex));
-		extractAnimationMeta(Poses[2].get(), true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+		extractAnimationMeta(Poses[2].get(), true, 1.0f);
 		//__AnimSubstructRootDeltaRotation(Poses[2].get());
 		rotateHips(Poses[2].get(), SimpleMath::Quaternion::CreateFromRotationMatrix(SimpleMath::Matrix::CreateRotationY(PI)));
 		Poses[2].get()->setLooping(true);
@@ -137,11 +108,11 @@ struct LadderAnimation : public AnimationWithImpl
 		else if (CurrentPoseIndex == 2)
 		{
 			auto& Joints = ::__AnimGetJointsByTime(Poses[CurrentPoseIndex].get(), 0.565217f); //0.565217f
-			auto V1 = SimpleMath::Matrix::CreateFromQuaternion(Joints[64][1]).Forward();
+			auto V1 = SimpleMath::Matrix::CreateFromQuaternion(Joints[HipsJointIndex][1]).Forward();
 			auto V2 = SimpleMath::Vector3(0, 0, -1);
 			auto Delta = TDeltaRotation(V1, V2);
 			sprintf(DebugBuffer, "LadderAnimation __AnimGetJointsByTime(%f)\n", (Delta.RotationAngle / XM_PI)*180.f); Debug();
-			Joints[64][1] = SimpleMath::Quaternion::Concatenate(Delta.Delta, Joints[64][1]);
+			Joints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(Delta.Delta, Joints[HipsJointIndex][1]);
 			return Joints;
 		}
 		else
@@ -172,6 +143,11 @@ struct LadderAnimation : public AnimationWithImpl
 		blendRoot = false;
 	};
 
+	int sign(float arg)
+	{
+		return arg < 0.f ? -1 : 1;
+	};
+
 	void advanse(double elapsedTime, SimpleMath::Vector3& DeltaTranslation, SimpleMath::Quaternion& DeltaRotation)
 	{
 		Impl->prev_frameNo = Impl->frameNo;
@@ -185,8 +161,8 @@ struct LadderAnimation : public AnimationWithImpl
 			CurrentJoints = CurrentPoseJoints = Poses[2].get()->CurrentJoints;
 		}
 
-		RootSampledRotation = SimpleMath::Quaternion(CurrentPoseJoints[64][1]);
-		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
+		RootSampledRotation = SimpleMath::Quaternion(CurrentPoseJoints[HipsJointIndex][1]);
+		CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(
 			RootDeltaRotation,
 			RootSampledRotation
 		);
@@ -262,6 +238,10 @@ struct LadderAnimation : public AnimationWithImpl
 
 	void PostActions()
 	{
+		if (!state_movement_on_ladder)
+		{
+			return;
+		}
 		if (CurrentPoseIndex == 1)
 		{
 			if (EveAnimationGraph->getAnimationBlend()->isPlaying())
@@ -315,6 +295,7 @@ struct LadderAnimation : public AnimationWithImpl
 		}
 		else if (CurrentPoseIndex == 3)
 		{
+			/*
 			if ((Pose3HoldHandIndex == 2 && 0.45f < Pose3Time) || (Pose3HoldHandIndex == 1 && 0.58f < Pose3Time))
 			{
 				auto DeltaTranslation = SimpleMath::Vector3::Zero;
@@ -346,6 +327,7 @@ struct LadderAnimation : public AnimationWithImpl
 			Pose3Time += (PrevPoseTime2 - PrevPoseTime1);
 			//sprintf(DebugBuffer, "LadderAnimation CurrentPoseIndex == 3 DeltaTime == %f Pose3Time == %f\n", (PrevPoseTime2 - PrevPoseTime1), Pose3Time); Debug();
 			return;
+			*/
 
 			const auto SubLeftHand_WS = GetJointLocation_WS(GetLeftHandMiddleFingerChain(), 4, EveAnimationGraph->getPlayingAnimation());
 			const auto SubRightHand_WS = GetJointLocation_WS(GetRightHandMiddleFingerChain(), 4, EveAnimationGraph->getPlayingAnimation());
@@ -356,18 +338,23 @@ struct LadderAnimation : public AnimationWithImpl
 
 			const auto LadderOrigin = SimpleMath::Matrix(GWorld.WorldTransforms["Ladder"]).Translation();
 			const auto LadderHeightBetweenItems = fabs(SimpleMath::Vector3::TransformNormal(SimpleMath::Vector3(0.f, 0.1448f, 0.f), SimpleMath::Matrix(GWorld.WorldTransforms["Ladder"])).y);
-			const auto LadderLeftDistanceBetweenTwoItems = MovingHand.y - (LadderOrigin.y - (Pose3LadderItemIndex + 2)*LadderHeightBetweenItems + Pose3HandConstOffset.y);
+			const auto LadderLeftDistanceBetweenTwoItems = MovingHand.y - (LadderOrigin.y - (Pose3LadderItemIndex + CurrentPose3_Sign*2)*LadderHeightBetweenItems + Pose3HandConstOffset.y);
 
 			bool NextLadderItem = false;
 
-			if (LadderLeftDistanceBetweenTwoItems < 0.f)
+			if (-sign(LadderLeftDistanceBetweenTwoItems) == CurrentPose3_Sign)
 			{
 				OriginOffset.y -= LadderLeftDistanceBetweenTwoItems;
 				MovingHand.y -= LadderLeftDistanceBetweenTwoItems;
 
-				Pose3LadderItemIndex++;
-				Pose3HoldHand = MovingHand;
+				const auto HandLadderItemOriginCoord = Pose3HoldHandIndex == 1 ? Pose3CharacterRightHandLadderItemCoord : Pose3CharacterLeftHandLadderItemCoord;
+				const auto HandOffsetOnLadderItem = HandLadderItemOriginCoord - Pose3CharacterLadderItemDirection.Dot(MovingHand);
+				OriginOffset += HandOffsetOnLadderItem*Pose3CharacterLadderItemDirection;
+				MovingHand += HandOffsetOnLadderItem*Pose3CharacterLadderItemDirection;
+
 				Pose3HoldHandIndex = (Pose3HoldHandIndex == 1 ? 2 : 1);
+				Pose3HoldHand = MovingHand;
+				Pose3LadderItemIndex += CurrentPose3_Sign;
 
 				NextLadderItem = true;
 			}
@@ -436,16 +423,20 @@ struct LadderAnimation : public AnimationWithImpl
 	{
 		if (bStarting)
 		{
-			prev_input = 0;
+			prev_input = 0.f;
 
 			TotalTime = 0.f;
 
+			prev_rate = -1;
+
+			CurrentPose3_Sign = 1;
+			
 			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			{
-				auto V1 = SimpleMath::Matrix::CreateFromQuaternion(Graph->getPlayingAnimation()->CurrentJoints[64][1]).Forward();
+				auto V1 = SimpleMath::Matrix::CreateFromQuaternion(Graph->getPlayingAnimation()->CurrentJoints[HipsJointIndex][1]).Forward();
 				auto V2 = SimpleMath::Vector3(0, 0, -1);
 				auto Delta = TDeltaRotation(V1, V2);
-				Graph->getPlayingAnimation()->CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(Delta.Delta, Graph->getPlayingAnimation()->CurrentJoints[64][1]);
+				Graph->getPlayingAnimation()->CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(Delta.Delta, Graph->getPlayingAnimation()->CurrentJoints[HipsJointIndex][1]);
 				GWorld.Capsules["eve"].orientation = SimpleMath::Quaternion::Concatenate(Delta.InverseDelta, GWorld.Capsules["eve"].orientation);
 			}
 			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -524,17 +515,40 @@ struct LadderAnimation : public AnimationWithImpl
 				auto normal = -1.f*SimpleMath::Matrix(GWorld.WorldTransforms["Ladder"]).Forward(); normal.Normalize();
 				Pose3CharacterLadderPlane = SimpleMath::Plane(point, normal);
 			}
+			{
+				Pose3CharacterLadderItemDirection = SimpleMath::Matrix(GWorld.WorldTransforms["Ladder"]).Right(); Pose3CharacterLadderItemDirection.Normalize();
+				Pose3CharacterLeftHandLadderItemCoord = Pose3CharacterLadderItemDirection.Dot(GetJointLocation_WS(GetLeftHandMiddleFingerChain(), 4, EveAnimationGraph->getPlayingAnimation()));
+				Pose3CharacterRightHandLadderItemCoord = Pose3CharacterLadderItemDirection.Dot(GetJointLocation_WS(GetRightHandMiddleFingerChain(), 4, EveAnimationGraph->getPlayingAnimation()));
+			}
 
 			return true;
 		}
 		else if (CurrentPoseIndex == 3)
 		{
-			if (prev_input == 0 && input_move.x != 0)
+			//if (prev_input == 0 && input_move.x != 0)
+			auto new_input = input_move.x;
+			auto new_rate = Poses[2].get()->getRate();
+			if (prev_input != new_input)
 			{
-				Poses[2].get()->setRate(input_move.x > 0 ? 1 : -1);
+				if (new_input != 0.f)
+				{
+					new_rate = sign(new_input);
+					if (prev_rate != new_rate)
+					{
+						Pose3LadderItemIndex += CurrentPose3_Sign * 2;
+						CurrentPose3_Sign = -new_rate;
+						Poses[2].get()->setRate(new_rate);
+					}
+					Poses[2].get()->setPlaying(true);
+				}
+				else
+				{
+					Poses[2].get()->setPlaying(false);
+				}
+				sprintf(DebugBuffer, "LadderAnimation CurrentPoseIndex == 3 prev_input != input_move.x %d %f %d\n", input_move.x != 0.f, input_move.x, Pose3LadderItemIndex); Debug();
 			}
-			Poses[2].get()->setPlaying(true);// input_move.x != 0.f);
-			prev_input = input_move.x;
+			prev_input = new_input;
+			prev_rate = new_rate;
 			return false;
 		}
 		else
@@ -546,15 +560,9 @@ struct LadderAnimation : public AnimationWithImpl
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void CreateLadderAnimationAndRegisterIntoAnimationGraph(IAnimationGraph2 * Graph, CharacterSkelet * characterSkelet, TransformationFrame * frame)
+void CreateLadderAnimationAndRegisterIntoAnimationGraph(IAnimationGraph2 * Graph, std::map<std::string, unsigned int>& FramesNamesIndex)
 {
-	auto getSkeletMatrix = [characterSkelet](unsigned int index){return characterSkelet->Transformation[index]; };
-	auto calculateFramesTrans = [frame](){ calculateFramesTransformations(frame, SimpleMath::Matrix::Identity); };
-
-	auto LadderAnim = new LadderAnimation(characterSkelet->FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
-	LadderAnim->subscribe("onPlayingChanged", [](bool state){
-		state_climbing = state;
-	});
+	auto LadderAnim = new LadderAnimation(FramesNamesIndex);
 
 	Graph->registerAnimation("ladder", LadderAnim);
 	Graph->createLink(LadderAnim)
@@ -562,17 +570,20 @@ void CreateLadderAnimationAndRegisterIntoAnimationGraph(IAnimationGraph2 * Graph
 		.reverse([Graph, LadderAnim](){
 			if (state_movement_on_ladder)
 			{
-				state_movement_on_ladder = false;
+				//state_movement_on_ladder = false;
 				return LadderAnim->NextPose(Graph, true);
 			}
 			else
 			{
 				return false;
 			}
-	});
-	Graph->createLink(LadderAnim)
+		})
 		.setEndPoint(LadderAnim)
 		.reverse([Graph, LadderAnim](){
 			return LadderAnim->NextPose(Graph, false);
-	});
+		})
+		.setEndPoint(Graph->getAnimation("idle"))
+		.forward([]{
+			return !state_movement_on_ladder;
+		});
 }

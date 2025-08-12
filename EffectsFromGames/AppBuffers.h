@@ -18,11 +18,14 @@ struct SceneState
 
 	DirectX::XMFLOAT4      vFrustumNearFar;              // Screen resolution
 	DirectX::XMFLOAT4      vFrustumParams;              // Screen resolution
+
 	DirectX::XMFLOAT4      vTime;
 
 	DirectX::XMFLOAT4      vClipPlane0;
 	DirectX::XMFLOAT4      vClipPlane1;
 	DirectX::XMFLOAT4      vClipPlane2;
+
+	DirectX::XMFLOAT4      MeshColor;
 };
 
 struct PostProccessState

@@ -1,6 +1,42 @@
 #include "main.h"
 #include "AnimationImpl.h"
 
+extern char DebugBuffer[1024];
+extern void Debug();
+
+void disposeFrames(TransformationFrame * Frame)
+{
+	if (Frame->FirstChild)
+		disposeFrames(Frame->FirstChild);
+	if (Frame->NextSibling)
+		disposeFrames(Frame->NextSibling);
+
+	for (int i = 0; i < Frame->Meshes.size(); i++)
+	{
+		delete Frame->Meshes[i];
+	};
+
+	delete Frame;
+}
+
+
+void characterfillFramesTransformsRefs(Character * character, TransformationFrame * frame)
+{
+	auto FramesNamesIndexIter = character->skeleton->JointsIndex.find(frame->Name);
+	if (FramesNamesIndexIter != character->skeleton->JointsIndex.end())
+	{
+		character->framesTransformsRefs[FramesNamesIndexIter->second] = &frame->Transformation;
+	}
+	else
+	{
+		sprintf(DebugBuffer, "fillFramesTransformsRefs %s\n", frame->Name.data()); Debug();
+	}
+	if (frame->FirstChild)
+		characterfillFramesTransformsRefs(character, frame->FirstChild);
+	if (frame->NextSibling)
+		characterfillFramesTransformsRefs(character, frame->NextSibling);
+}
+
 AnimationWithImpl::AnimationWithImpl()
 {
 	Impl = new AnimationRep();

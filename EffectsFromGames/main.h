@@ -171,6 +171,12 @@ public:
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> default_Material_Grid_M;
 
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> default_Material_Grid_N;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Holster_Albedo_M;
+
+	std::unique_ptr<DirectX::IEffect> lambert_effect;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Female_Western_Gun_M;
 };
 
 class SwapChainGraphicResources {
@@ -208,26 +214,17 @@ public:
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> RT_refraction;
 };
 
-struct TransformationFrame;
-struct CharacterSkelet;
 struct AnimationGraph;
 
-inline void fillSkeletonTransformFromJoint(AnimationBase* animation, CharacterSkelet *skelet)
+SimpleMath::Matrix* GetSkeletonMatrix(Character *character, int index);
+
+inline void fillSkeletonTransformFromJoint(AnimationBase* animation, Character *character)
 {
-	SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
 	for (int i = 0; animation && i < animation->CurrentJoints.size(); i++)
 	{
-		(*GetSkeletonMatrix(skelet, i)) = animation->CurrentJoints[i].matrix();
+		(*GetSkeletonMatrix(character, i)) = animation->CurrentJoints[i].matrix();
 	}
 }
-
-struct Character
-{
-	TransformationFrame * frame;
-	CharacterSkelet * skelet;
-
-	~Character();
-};
 
 struct StaticObject
 {
@@ -348,23 +345,25 @@ struct AnimationGraph2Links
 	};
 };
 
-Character* loadCharacter(ID3D11Device* device, char * file_name);
+Character* loadCharacter(ID3D11Device* device, char * file_name, Skeleton& HumanSkeleton);
 StaticObject* loadStaticObject(ID3D11Device* device, char * file_name);
 StaticObject* loadStaticObject2(ID3D11Device* device, char * file_name);
-void loadAnimations(IAnimationGraph2 *, CharacterSkelet * characterSkelet, TransformationFrame * frame);
+void loadAnimations(IAnimationGraph2 *, Skeleton* skeleton);
 
 AnimationLinearBlend* makeBlend();
 AnimationBase* makeAnimationPose();
 void copyAnimationPose(AnimationBase* src, AnimationBase* dst);
-IAnimationGraph2 * makeAnimationGraph(CharacterSkelet * skelet, AnimationLinearBlend * transitionAnim, AnimationBase * animationPose);
-IAnimationGraph * __makeAnimationGraph(std::map<AnimationState, Animation *> newAnimations, CharacterSkelet * skelet);
+IAnimationGraph2 * makeAnimationGraph(AnimationLinearBlend * transitionAnim, AnimationBase * animationPose);
+//IAnimationGraph * __makeAnimationGraph(std::map<AnimationState, Animation *> newAnimations, CharacterSkelet * skelet);
 void disposeAnimationGraph(IAnimationGraph2* stateMachine);
 
-void calculateFramesTransformations(TransformationFrame * Frame, SimpleMath::Matrix ParentTransformation);
-SimpleMath::Matrix* calculateAnimationPalite(CharacterSkelet * skelet);
-void drawFrames(TransformationFrame * Frame, ID3D11DeviceContext* context, IEffect* effect, ID3D11InputLayout* inputLayout, std::function<void __cdecl()> setCustomState);
+void calculateFramesTransformations(TransformationFrame * frame, SimpleMath::Matrix ParentTransformation);
+void calculateFramesTransformations(Character * CharacterObject, SimpleMath::Matrix ParentTransformation);
+SimpleMath::Matrix* calculateAnimationPalite(Character * character);
+void drawFrames(TransformationFrame * Frame, ID3D11DeviceContext* context, IEffect* effect, ID3D11InputLayout* inputLayout, std::function<void __cdecl()> setCustomState, std::function<void __cdecl(TransformationFrame * Frame)> onFrameWithMesh = [](TransformationFrame *){});
 void getJointFrame(Character * skelet, char * JointName, std::function<void __cdecl(SimpleMath::Matrix M)> OnFrame);
 SimpleMath::Vector4 vec4(SimpleMath::Vector3 v3, float w);
+void extractAnimationMeta(Animation * anim, bool extractHeight, double duration);
 
 struct JointHelpers
 {
@@ -752,49 +751,6 @@ namespace Simulation
 
 const float PI = 3.141592653589793238462643383279;
 
-struct VertexPositionNormalTangentColorTextureSkinning2 : public VertexPositionNormalTangentColorTexture
-{
-	uint32_t indices;
-	DirectX::XMFLOAT4 weights;
-
-	uint32_t indices2;
-	DirectX::XMFLOAT4 weights2;
-
-	VertexPositionNormalTangentColorTextureSkinning2()
-	{
-		SetBlendIndices(XMUINT4(0, 0, 0, 0));
-		SetBlendWeights(FXMVECTOR());
-
-		SetBlendIndices2(XMUINT4(0, 0, 0, 0));
-		SetBlendWeights2(FXMVECTOR());
-	}
-
-	void SetBlendIndices(XMUINT4 const& iindices)
-	{
-		this->indices = ((iindices.w & 0xff) << 24) | ((iindices.z & 0xff) << 16) | ((iindices.y & 0xff) << 8) | (iindices.x & 0xff);
-	}
-
-	void SetBlendIndices2(XMUINT4 const& iindices)
-	{
-		this->indices2 = ((iindices.w & 0xff) << 24) | ((iindices.z & 0xff) << 16) | ((iindices.y & 0xff) << 8) | (iindices.x & 0xff);
-	}
-
-	void SetBlendWeights(FXMVECTOR iweights)
-	{
-		this->weights = SimpleMath::Vector4(iweights);
-		//DirectX::PackedVector::XMUBYTEN4 packed;
-		//DirectX::PackedVector::XMStoreUByteN4(&packed, iweights);
-		//this->weights2 = packed.v;
-	}
-
-	void SetBlendWeights2(FXMVECTOR iweights)
-	{
-		this->weights2 = SimpleMath::Vector4(iweights);
-		//DirectX::PackedVector::XMUBYTEN4 packed;
-		//DirectX::PackedVector::XMStoreUByteN4(&packed, iweights);
-		//this->weights2 = packed.v;
-	}
-};
 
 void FillGrid_Indexed(std::vector<VertexPositionNormalTangentColorTextureSkinning2> & _vertices, std::vector<UINT> & _indices, DWORD dwWidth, DWORD dwLength, _In_opt_ std::function<float __cdecl(SimpleMath::Vector3)> setHeight);
 DirectX::ModelMeshPart* CreateModelMeshPart(ID3D11Device* device, std::function<void(std::vector<VertexPositionNormalTangentColorTextureSkinning2> & _vertices, std::vector<UINT> & _indices)> createGeometry);
@@ -975,19 +931,30 @@ struct TDeltaRotation2
 	{
 		Rotation = SimpleMath::Quaternion::Concatenate(InverseDelta, Rotation);
 	}
-	void Transform(DirectX::XMFLOAT4& To, DirectX::XMFLOAT4& From)
-	{
-		auto w = From.w;
-		auto A = SimpleMath::Vector3(SimpleMath::Vector4(From));
-		auto B = SimpleMath::Vector3(SimpleMath::Vector4(To));
-		To = SimpleMath::Vector4(A + SimpleMath::Vector3::Transform(B - A, Delta));
-		To.w = w;
-	}
-	//void Transform(DirectX::XMFLOAT4& Location)
-	//{
-	//	auto w = Location.w;
-	//	auto A = SimpleMath::Vector3(SimpleMath::Vector4(Location));
-	//	Location = SimpleMath::Vector4(SimpleMath::Vector3::Transform(A, Delta));
-	//	Location.w = w;
-	//}
 };
+
+extern int HipsJointIndex;
+extern int LeftToeEndJointIndex;
+extern int RightToeEndJointIndex;
+extern int LeftHandJointIndex;
+extern int RightHandJointIndex;
+extern int HeadTopEndJointIndex;
+extern JointsRefsChainCollection jointsRefsChains;
+extern Skeleton HumanSkeleton;
+
+/////
+inline bool _replace(std::string& str, const std::string& from, const std::string& to) {
+	size_t start_pos = str.find(from);
+	if (start_pos == std::string::npos)
+		return false;
+	str.replace(start_pos, from.length(), to);
+	return true;
+}
+
+inline SimpleMath::Vector3 _getJointLocationByIndex_MS(const std::vector<JointSQT>& CharactersJoints, const std::vector<int>& ChainsJointsIndex, const int JointIndex, std::vector<JointSQT>& ChainsJoints)
+{
+	for (int i = 0; i < ChainsJointsIndex.size(); i++){ ChainsJoints[i] = CharactersJoints[ChainsJointsIndex[i]]; };
+	JointHelpers::localToModel(ChainsJointsIndex.size(), ChainsJoints);
+	return 0.01f*SimpleMath::Vector3(SimpleMath::Vector4(ChainsJoints[JointIndex][2]));
+}
+/////

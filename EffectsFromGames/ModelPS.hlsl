@@ -19,6 +19,35 @@ Texture2D  texDepth : register( t6 );
 
 Texture2D  texMaterial_N : register(t7);
 
+cbuffer cbMain : register(b0)
+{
+	matrix    g_mWorld;                         // World matrix
+	matrix    g_mView;                          // View matrix
+	matrix    g_mProjection;                    // Projection matrix
+	matrix    g_mWorldViewProjection;           // WVP matrix
+	matrix    g_mWorldView;                     // WV matrix
+	matrix    g_mInvView;                       // Inverse of view matrix
+
+	matrix    g_mObject1;                // VP matrix
+	matrix    g_mObject1WorldView;                       // Inverse of view matrix
+	matrix    g_mObject1WorldViewProjection;                       // Inverse of view matrix
+
+	matrix    g_mObject2;                // VP matrix
+	matrix    g_mObject2WorldView;                       // Inverse of view matrix
+	matrix    g_mObject2WorldViewProjection;                       // Inverse of view matrix
+
+	float4    g_vFrustumNearFar;              // Screen resolution
+	float4    g_vFrustumParams;              // Screen resolution
+
+	float4    g_Time;
+
+	float4    g_ClipPlane0;
+	float4    g_ClipPlane1;
+	float4    g_ClipPlane2;
+
+	float4    g_MeshColor;
+};
+
 cbuffer cbPostProccess : register( b1 )
 {
 	float     ScanDistance;
@@ -117,13 +146,13 @@ Targets EVE_PS(
 
     float3 AmbiColor = float3(0.1,0.1,0.1);
     float3 LightColor = float3(1.,1.,1.);
-    float4 MaterialColor = texColor.Sample(linearSampler, tex_coord);
+	float4 MaterialColor = lerp(texColor.Sample(linearSampler, tex_coord), g_MeshColor, g_MeshColor.a);
     float3 ReflectiveLightColor = float3(1.,1.,1.); // changing by lighting_calculations
 
     float3 fragNormal = normalize(decodeNormal(texNormal.Sample(linearSampler, tex_coord)));
     fragNormal = normalize(mul(fragNormal, GetTBN(t,b,n)));
 
-    lighting_calculations(light_pos, pos, fragNormal, AmbiColor, LightColor, ReflectiveLightColor);
+	lighting_calculations(light_pos, pos, lerp(fragNormal, n, g_MeshColor.a), AmbiColor, LightColor, ReflectiveLightColor);
 
     output.color = float4(clamp(ReflectiveLightColor*MaterialColor,0,1), 1);
 
@@ -302,6 +331,37 @@ Targets LEDGE_BOX_PS(
 	float3 fragNormal = normalize(normal);
 
 	float3 MaterialColor = float3(1.0, 1.0, 1.0);
+
+	float3 LightColor = float3(1., 1., 1.);
+	float3 AmbiColor = float3(0.1, 0.1, 0.1);
+
+	float3 ReflectiveLightColor;
+	lighting_calculations(lightPos, fragPos, fragNormal, AmbiColor, LightColor, ReflectiveLightColor);
+
+	output.color = float4(clamp(ReflectiveLightColor * MaterialColor, 0, 1), 1);
+
+	return output;
+};
+
+Targets LAMBERT_PS(
+	float3 normal     : TEXCOORD1,
+	float3 fragPos    : TEXCOORD2,
+	float3 lightPos   : TEXCOORD3,
+	float2 face_uv    : TEXCOORD4,
+
+	float3 lightTBN  : TEXCOORD5,
+	float3 viewTBN   : TEXCOORD6,
+
+	float2 face_size : TEXCOORD7,
+
+	float4 clip_pos  : SV_POSITION
+	) :SV_TARGET
+{
+	Targets output;
+
+	float3 fragNormal = normalize(normal);
+
+	float3 MaterialColor = texMaterial_M.Sample(linearSampler, face_uv).xyz;
 
 	float3 LightColor = float3(1., 1., 1.);
 	float3 AmbiColor = float3(0.1, 0.1, 0.1);

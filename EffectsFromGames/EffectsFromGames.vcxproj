@@ -396,7 +396,6 @@
     <ClCompile Include="Animation.cpp" />
     <ClCompile Include="AnimationBlend.cpp" />
     <ClCompile Include="AnimationClasses.cpp" />
-    <ClCompile Include="AnimationState.cpp" />
     <ClCompile Include="AnimationState2.cpp" />
     <ClCompile Include="AnimationClasses.h" />
     <ClCompile Include="BallisticFlyAnimation.cpp" />
@@ -404,6 +403,7 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CharacterState.cpp" />
     <ClCompile Include="Collision.cpp" />
+    <ClCompile Include="AnimationsCombiner.cpp" />
     <ClCompile Include="ConstantBuffer.h" />
     <ClCompile Include="CreateDestroyDevice.cpp" />
     <ClCompile Include="DrawCalls.cpp" />

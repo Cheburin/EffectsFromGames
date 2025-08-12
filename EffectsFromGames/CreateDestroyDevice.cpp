@@ -29,6 +29,12 @@ StaticObject * Pool;
 
 StaticObject * Ladder;
 
+StaticObject * LeftHolster;
+
+StaticObject * RightHolster;
+
+StaticObject * Gun;
+
 SimpleMath::Vector3 LadderSize;
 
 IAnimationGraph2 * EveAnimationGraph;
@@ -43,9 +49,15 @@ EvePath g_EvePath;
 
 World GWorld;
 
+Character * Mannequin;
+
+Animation * MannequinPose;
+
 std::vector< std::string > GLedgesNames;
 
 extern D3D11_INPUT_ELEMENT_DESC CharacterInputElements[9];
+
+Skeleton HumanSkeleton;
 
 void CreateInputLayoutForCharacter(_In_ ID3D11Device* device, IEffect* effect, _Outptr_ ID3D11InputLayout** pInputLayout)
 {
@@ -209,6 +221,13 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 
 		G->water_effect = createHlslEffect(device, shaderDef);
 	}
+	{
+		std::map<const WCHAR*, EffectShaderFileDef> shaderDef;
+		shaderDef[L"VS"] = { L"ModelVS.hlsl", L"LAMBERT_VS", L"vs_5_0" };
+		shaderDef[L"PS"] = { L"ModelPS.hlsl", L"LAMBERT_PS", L"ps_5_0" };
+
+		G->lambert_effect = createHlslEffect(device, shaderDef);
+	}
 
 	//textures
 	{
@@ -221,6 +240,8 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Textures\\waternormal.dds", NULL, NULL, G->water_texture.ReleaseAndGetAddressOf(), NULL);
 		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Textures\\T_Default_Material_Grid_M.BMP", NULL, NULL, G->default_Material_Grid_M.ReleaseAndGetAddressOf(), NULL);
 		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Textures\\T_Default_Material_Grid_N.BMP", NULL, NULL, G->default_Material_Grid_N.ReleaseAndGetAddressOf(), NULL);
+		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Models\\Holster_Albedo_1.003.png", NULL, NULL, G->Holster_Albedo_M.ReleaseAndGetAddressOf(), NULL);
+		hr = D3DX11CreateShaderResourceViewFromFile(device, L"Media\\Models\\Texture_Lighter_Female_Western_Gun_1.003.png", NULL, NULL, G->Female_Western_Gun_M.ReleaseAndGetAddressOf(), NULL);
 	}
 
 	//procedural models
@@ -242,21 +263,84 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 	auto M = (SimpleMath::Matrix::CreateRotationY((PI * 180) / 180.0));
 	auto K = SimpleMath::Vector3::Transform(SimpleMath::Vector3(1, 0, 0), M);
 
+	GWorld.WorldTransforms["MannequinWorldFrame"] = SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * SimpleMath::Matrix::CreateScale(1.f / 1.3f) * SimpleMath::Matrix::CreateRotationY(-0.5f*PI + 45.f/180.f*PI) * SimpleMath::Matrix::CreateTranslation(-100, 0, -79);
+
 	//animation models
 	{
-		Eve = loadCharacter(device, "Media\\Characters\\eve_j_gonzales.dae");
+		Eve = loadCharacter(device, "Media\\Characters\\eve_j_gonzales.dae", HumanSkeleton);
+		Mannequin = loadCharacter(device, "Media\\Characters\\Mannequin\\MaleStandingPose.dae", HumanSkeleton);
+	}
+	{
+		HipsJointIndex = HumanSkeleton.JointsIndex.find("Hips")->second;
+		LeftToeEndJointIndex = HumanSkeleton.JointsIndex.find("LeftToe_End")->second;
+		RightToeEndJointIndex = HumanSkeleton.JointsIndex.find("RightToe_End")->second;
+		LeftHandJointIndex = HumanSkeleton.JointsIndex.find("LeftHand")->second;
+		RightHandJointIndex = HumanSkeleton.JointsIndex.find("RightHand")->second;
+		HeadTopEndJointIndex = HumanSkeleton.JointsIndex.find("HeadTop_End")->second;
+	}
+	{
+		//Eve->fillFramesTransformsRefs();
+		//Mannequin->fillFramesTransformsRefs();
+	}
+	{
 
-		EveAnimationGraph = makeAnimationGraph(Eve->skelet, makeBlend(), makeAnimationPose());
+		EveAnimationGraph = makeAnimationGraph(makeBlend(), makeAnimationPose());
 
 		jointsRefsChains.init(Eve);
 
-		loadAnimations(EveAnimationGraph, Eve->skelet, Eve->frame);
+		loadAnimations(EveAnimationGraph, &HumanSkeleton);
 
 		EveIKSolver = makeIKSolver(Eve);
 
 		ClimbingPathHelper = MakeClimbingPathHelper();
 
 		CreateInputLayoutForCharacter(device, G->eve_effect.get(), G->eve_input_layout.GetAddressOf());
+	}
+	
+	//sockets
+	{
+		void GetRelativeJoint(JointSQT & Joint1, JointSQT & Joint2);
+		SimpleMath::Matrix GetFirstChildFrameTransformation(TransformationFrame * Frame);
+		std::vector<JointSQT> GetChainsJoints_MS(Animation* Anim, const std::vector<int>& Chain);
+		TransformationFrame* findTransformationFrameByName(TransformationFrame * Frame, char * JointName);
+		void AddSiblingSocket(Character* CharacterObject, TransformationFrame * Frame, std::string name, SimpleMath::Matrix Transformation = SimpleMath::Matrix::Identity, std::map<std::string, SimpleMath::Matrix> innerFramesTransformations = std::map<std::string, SimpleMath::Matrix>());
+		void AddFirstChildSocket(Character* CharacterObject, TransformationFrame * Frame, std::string name, SimpleMath::Matrix Transformation = SimpleMath::Matrix::Identity, std::map<std::string, SimpleMath::Matrix> innerFramesTransformations = std::map<std::string, SimpleMath::Matrix>());
+		void attachSocket(Character* CharacterObject, char* socketName, char* destFrameName);
+		void addSocketTransformation(Character* CharacterObject, char* frameName, std::pair<std::string, SimpleMath::Matrix> SocketTransformation);
+		auto GetJointFromPivotFile = [](ID3D11Device* device, char * file_name)
+		{
+			StaticObject * HolsterPivotObject = loadStaticObject(device, file_name);
+			DirectX::XMVECTOR S, Q, T;
+			DirectX::FXMMATRIX M = GetFirstChildFrameTransformation(HolsterPivotObject->frame);
+			assert(XMMatrixDecompose(&S, &Q, &T, M));
+			JointSQT HolsterPivotJoint_MS;
+			HolsterPivotJoint_MS[0] = SimpleMath::Vector4(1.f, 1.f, 1.f, 1.f);
+			HolsterPivotJoint_MS[1] = SimpleMath::Vector4(Q);
+			HolsterPivotJoint_MS[2] = (1.f / 0.01f) * SimpleMath::Vector4(T);
+			delete HolsterPivotObject;
+			return HolsterPivotJoint_MS;
+		};
+
+		auto TPoseLeftLegJoint_MS = GetChainsJoints_MS((Animation*)EveAnimationGraph->getAnimation("TPose"), jointsRefsChains.HipsLeftToe_End);
+		auto TPoseRightLegJoint_MS = GetChainsJoints_MS((Animation*)EveAnimationGraph->getAnimation("TPose"), jointsRefsChains.HipsRightToe_End);
+
+		JointSQT LeftHolsterPivot_MS = GetJointFromPivotFile(device, "Media\\Models\\LeftHolsterPivot.dae");
+		JointSQT RightHolsterPivot_MS = GetJointFromPivotFile(device, "Media\\Models\\RightHolsterPivot.dae");
+
+		GetRelativeJoint(TPoseLeftLegJoint_MS[1], LeftHolsterPivot_MS);
+		GetRelativeJoint(TPoseRightLegJoint_MS[1], RightHolsterPivot_MS);
+
+		AddSiblingSocket(Eve, findTransformationFrameByName(Eve->frame, "LeftLeg"), "LeftLegHolster", LeftHolsterPivot_MS.matrix(), { { "LeftGun", SimpleMath::Matrix::CreateTranslation(2.5f, 10.f, 5.f) } } );
+		AddSiblingSocket(Eve, findTransformationFrameByName(Eve->frame, "RightLeg"), "RightLegHolster", RightHolsterPivot_MS.matrix(), { { "RightGun", SimpleMath::Matrix::CreateTranslation(-2.5f, 10.f, 5.f) } } );
+
+		addSocketTransformation(Eve, "LeftHand", { "LeftGun", SimpleMath::Matrix::CreateTranslation(-0.5,-6.5,0) * SimpleMath::Matrix::CreateRotationZ(PI / 180.f * 90.f) });
+		addSocketTransformation(Eve, "RightHand", { "RightGun", SimpleMath::Matrix::CreateTranslation(0.5,-6.5,0) * SimpleMath::Matrix::CreateRotationZ(-PI / 180.f * 90.f) });
+
+		AddFirstChildSocket(Eve, findTransformationFrameByName(Eve->frame, "LeftLegHolster"), "LeftGun");
+		AddFirstChildSocket(Eve, findTransformationFrameByName(Eve->frame, "RightLegHolster"), "RightGun");
+
+		attachSocket(Eve, "LeftGun", "LeftLegHolster");
+		attachSocket(Eve, "RightGun", "RightLegHolster");
 	}
 
 	//static models
@@ -266,6 +350,10 @@ HRESULT CALLBACK OnD3D11CreateDevice(ID3D11Device* device, const DXGI_SURFACE_DE
 
 		Ladder = loadStaticObject(device, "Media\\Models\\Ladder.dae");
 		//calculateFramesTransformations(Ladder->frame, SimpleMath::Matrix::Identity);
+
+		LeftHolster = loadStaticObject(device, "Media\\Models\\LeftHolster.dae");
+		RightHolster = loadStaticObject(device, "Media\\Models\\RightHolster.dae");
+		Gun = loadStaticObject(device, "Media\\Models\\Gun.dae");
 	}
 
 	//set states 
@@ -599,13 +687,19 @@ void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 
 	delete ClimbingPathHelper;
 
-	disposeAnimationGraph(EveAnimationGraph);
+	delete EveAnimationGraph;
 
 	delete Eve;
 
 	delete Pool;
 
 	delete Ladder;
+
+	delete LeftHolster;
+
+	delete RightHolster;
+	
+	delete Gun;
 
 	g_DialogResourceManager.OnD3D11DestroyDevice();
 
@@ -616,4 +710,8 @@ void CALLBACK OnD3D11DestroyDevice(void* pUserContext)
 	delete G;
 
 	delete DebugAnimation;
+
+	delete Mannequin;
+
+	delete MannequinPose;
 }

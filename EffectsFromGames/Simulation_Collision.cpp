@@ -20,6 +20,7 @@ extern bool state_into_water;
 extern bool state_hanging;
 extern bool state_walking_on_your_feet;
 extern bool state_idle;
+extern bool state_movement_on_ladder;
 extern SimpleMath::Vector3 gravitation;
 extern bool state_movement_is_obstructed;
 extern SimpleMath::Vector3 state_hanging_Hand_Location;
@@ -187,12 +188,13 @@ namespace Simulation
 
 				state_falling = state_falling ? t == 1.f : state_falling;
 			}
-			else if (state_falling_and_hang_on || state_jump || state_jump_from_wall || state_ballistic_fly_to_target)
+			else if (state_falling_and_hang_on || state_jump || state_jump_from_wall || state_ballistic_fly_to_target || state_movement_on_ladder)
 			{
 				auto t = BlockingMove(capsule, deltaTranslation);
 
 				state_jump_from_wall = state_jump_from_wall ? t == 1.f : state_jump_from_wall;
 				state_falling_and_hang_on = state_falling_and_hang_on ? t == 1.f : state_falling_and_hang_on;
+				state_movement_on_ladder = state_movement_on_ladder ? t == 1.f : state_movement_on_ladder;
 			}
 			else if (state_climbing)
 			{

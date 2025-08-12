@@ -39,7 +39,6 @@ namespace
 }
 
 void GetStartYaw_PrevRoot_CurrentRoot(AnimationBase* blend, float& StartYaw, SimpleMath::Quaternion &PrevRootRotation, JointSQT* &CurrentRootRotation);
-SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
 std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index, float Time = 0);
 
 void __AnimSetRootDeltaRotation(AnimationBase* Anim, SimpleMath::Quaternion RootRotation);
@@ -65,10 +64,10 @@ namespace Simulation
 			InProgress = true;
 			InverseRootTotalRotation = SimpleMath::Quaternion::Identity;
 
-			UpdateCapsuleRotation_AlignHipsJointOrintationToCapsuleForward(GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[64][1]);
+			UpdateCapsuleRotation_AlignHipsJointOrintationToCapsuleForward(GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[HipsJointIndex][1]);
 
-			auto& From = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 2, BlendTime)[64][1];
-			auto& To = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[64][1];
+			auto& From = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 2, BlendTime)[HipsJointIndex][1];
+			auto& To = GetAnimationJointsSet(EveAnimationGraph->getAnimationBlend(), 1)[HipsJointIndex][1];
 
 			auto V1 = SimpleMath::Matrix::CreateFromQuaternion(From).Forward();
 			auto V2 = SimpleMath::Matrix::CreateFromQuaternion(To).Forward();
@@ -160,7 +159,7 @@ namespace Simulation
 				//	return;
 				//}
 				{
-					JointSQT& RootJoint = EveAnimationGraph->getPlayingAnimation()->CurrentJoints[64];
+					JointSQT& RootJoint = EveAnimationGraph->getPlayingAnimation()->CurrentJoints[HipsJointIndex];
 					auto RootRotation = SimpleMath::Quaternion(RootJoint[1]);
 					//auto PrevRootRotation = SimpleMath::Matrix::CreateFromQuaternion(PrevRootRotation);
 					//PrevRootRotation = RootJoint[1];
@@ -175,7 +174,7 @@ namespace Simulation
 					DeltaRotation.Substruct(InverseRootTotalRotation);
 
 					RootJoint[1] = SimpleMath::Quaternion::Concatenate(InverseRootTotalRotation, RootJoint[1]);
-					(*GetSkeletonMatrix(Eve->skelet, 64)) = RootJoint.matrix();
+					(*GetSkeletonMatrix(Eve, HipsJointIndex)) = RootJoint.matrix();
 
 					//if (abs(RotationAngle) > 0.000001f)
 					//{
@@ -205,7 +204,7 @@ namespace Simulation
 					CapsulForwward_WS.Normalize();
 					const auto CapsulForwward_Alfa = atan2(CapsulForwward_WS.z, CapsulForwward_WS.x) * 180.f / XM_PI;
 
-					auto HipsForwward_WS = ((*GetSkeletonMatrix(Eve->skelet, 64)) * FromModelSpaceToWorld).Forward();
+					auto HipsForwward_WS = ((*GetSkeletonMatrix(Eve, HipsJointIndex)) * FromModelSpaceToWorld).Forward();
 					HipsForwward_WS.y = 0.f;
 					HipsForwward_WS.Normalize();
 					const auto HipsForwward_Alfa = atan2(HipsForwward_WS.z, HipsForwward_WS.x) * 180.f / XM_PI;
@@ -232,13 +231,13 @@ namespace Simulation
 				
 				__AnimResampleCurrentRootRotation(EveAnimationGraph->getPlayingAnimation());
 
-				EveAnimationGraph->getAnimationBlend()->CurrentJoints[64][1] = EveAnimationGraph->getPlayingAnimation()->CurrentJoints[64][1];
+				EveAnimationGraph->getAnimationBlend()->CurrentJoints[HipsJointIndex][1] = EveAnimationGraph->getPlayingAnimation()->CurrentJoints[HipsJointIndex][1];
 
 				__AnimSetRootDeltaRotation(EveAnimationGraph->getPlayingAnimation(), SimpleMath::Quaternion::Identity);
 
-				JointSQT& RootJoint = EveAnimationGraph->getPlayingAnimation()->CurrentJoints[64];
+				JointSQT& RootJoint = EveAnimationGraph->getPlayingAnimation()->CurrentJoints[HipsJointIndex];
 				
-				(*GetSkeletonMatrix(Eve->skelet, 64)) = RootJoint.matrix();
+				(*GetSkeletonMatrix(Eve, HipsJointIndex)) = RootJoint.matrix();
 
 				sprintf(DebugBuffer, "UpdateCapsuleRotation Done() %f %f %f %f\n", TargetOrientation.x, TargetOrientation.y, TargetOrientation.z, TargetOrientation.w); Debug();
 
@@ -252,7 +251,7 @@ namespace Simulation
 					CapsulForwward_WS.Normalize();
 					const auto CapsulForwward_Alfa = atan2(CapsulForwward_WS.z, CapsulForwward_WS.x) * 180.f / XM_PI;
 
-					auto HipsForwward_WS = ((*GetSkeletonMatrix(Eve->skelet, 64)) * FromModelSpaceToWorld).Forward();
+					auto HipsForwward_WS = ((*GetSkeletonMatrix(Eve, HipsJointIndex)) * FromModelSpaceToWorld).Forward();
 					HipsForwward_WS.y = 0.f;
 					HipsForwward_WS.Normalize();
 					const auto HipsForwward_Alfa = atan2(HipsForwward_WS.z, HipsForwward_WS.x) * 180.f / XM_PI;

@@ -227,8 +227,8 @@ struct Animation2 : public Animation
 		{
 			Impl->getJointSQT(i, Impl->local_time, CurrentJoints[i]);
 		}
-		RootSampledRotation = CurrentJoints[64][1];
-		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
+		RootSampledRotation = CurrentJoints[HipsJointIndex][1];
+		CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(
 			RootDeltaRotation,
 			RootSampledRotation
 		);
@@ -311,8 +311,8 @@ struct Animation2 : public Animation
 void __AnimSetRootDeltaRotation(AnimationBase* Anim, SimpleMath::Quaternion RootRotation)
 {
 	Anim->RootDeltaRotation = RootRotation;
-	Anim->RootSampledRotation = Anim->CurrentJoints[64][1];
-	Anim->CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
+	Anim->RootSampledRotation = Anim->CurrentJoints[HipsJointIndex][1];
+	Anim->CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(
 		Anim->RootDeltaRotation,
 		Anim->RootSampledRotation
 	);
@@ -320,7 +320,7 @@ void __AnimSetRootDeltaRotation(AnimationBase* Anim, SimpleMath::Quaternion Root
 
 void __AnimResampleCurrentRootRotation(AnimationBase* Anim)
 {
-	Anim->CurrentJoints[64][1] = Anim->RootSampledRotation;
+	Anim->CurrentJoints[HipsJointIndex][1] = Anim->RootSampledRotation;
 }
 
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time)
@@ -395,12 +395,12 @@ SimpleMath::Quaternion __AnimSubstructRootDeltaRotation(AnimationBase* Anim)
 	if (auto ret = dynamic_cast<Animation2*>(Anim))
 	{
 		auto V1 = SimpleMath::Vector3(0,0,-1);
-		auto V2 = SimpleMath::Matrix::CreateFromQuaternion(__AnimGetJointsByTime(Anim, 0.f)[64][1]).Forward();
+		auto V2 = SimpleMath::Matrix::CreateFromQuaternion(__AnimGetJointsByTime(Anim, 0.f)[HipsJointIndex][1]).Forward();
 
 		TDeltaRotation DeltaRotation(V1, V2);
 		auto InverseDelta = DeltaRotation.InverseDelta;
 
-		ret->Impl->TransformJointRotationSamples(64, [InverseDelta](SimpleMath::Vector4 JointRotaion){
+		ret->Impl->TransformJointRotationSamples(HipsJointIndex, [InverseDelta](SimpleMath::Vector4 JointRotaion){
 			return SimpleMath::Quaternion::Concatenate(InverseDelta, JointRotaion);
 		});
 
@@ -409,16 +409,6 @@ SimpleMath::Quaternion __AnimSubstructRootDeltaRotation(AnimationBase* Anim)
 }
 
 SimpleMath::Matrix aiMatrixToSimpleMathMatrix(const aiMatrix4x4& aiMe);
-
-/////
-bool _replace(std::string& str, const std::string& from, const std::string& to) {
-	size_t start_pos = str.find(from);
-	if (start_pos == std::string::npos)
-		return false;
-	str.replace(start_pos, from.length(), to);
-	return true;
-}
-/////
 
 void collectBones(aiNode * node, AnimationRep2 * anim, std::vector<JointSQT> * Joints, std::map<std::string, unsigned int> * FramesNamesIndex, char * replace)
 {
@@ -437,13 +427,15 @@ void collectBones(aiNode * node, AnimationRep2 * anim, std::vector<JointSQT> * J
 		auto pFrameIndex = FramesNamesIndex->find(key);
 		if (pFrameIndex == FramesNamesIndex->end())
 		{
-			throw "";
+			sprintf(DebugBuffer, "collectBones %s\n", key.data()); Debug();
 		}
+		else
+		{
+			auto index = pFrameIndex->second;
 
-		auto index = pFrameIndex->second;
-
-		anim->setJoint(index, aiMatrixToSimpleMathMatrix(ChildrenNode->mTransformation));
-		anim->getJointSQT(index, (*Joints)[index]);
+			anim->setJoint(index, aiMatrixToSimpleMathMatrix(ChildrenNode->mTransformation));
+			anim->getJointSQT(index, (*Joints)[index]);
+		}
 
 		// deeper and deeper
 		collectBones(ChildrenNode, anim, Joints, FramesNamesIndex, replace);
@@ -585,21 +577,21 @@ void __grabAnimationChannels(std::map<std::string, unsigned int> & FramesNamesIn
 		{
 			auto & s = c->mScalingKeys[j];
 
-			ret->Impl->appendScaling(index, s.mTime / mDuration, s.mValue.x, s.mValue.y, s.mValue.z);
+			ret->Impl->appendScaling(index, j == 0 ? 0.0 : (s.mTime / mDuration), s.mValue.x, s.mValue.y, s.mValue.z);
 		}
 
 		for (int j = 0; j < c->mNumRotationKeys; j++)
 		{
 			auto & r = c->mRotationKeys[j];
 
-			ret->Impl->appendRotation(index, r.mTime / mDuration, r.mValue.x, r.mValue.y, r.mValue.z, r.mValue.w);
+			ret->Impl->appendRotation(index, j == 0 ? 0.0 : (r.mTime / mDuration), r.mValue.x, r.mValue.y, r.mValue.z, r.mValue.w);
 		}
 
 		for (int j = 0; j < c->mNumPositionKeys; j++)
 		{
 			auto & t = c->mPositionKeys[j];
 
-			ret->Impl->appendTranslation(index, t.mTime / mDuration, t.mValue.x, t.mValue.y, t.mValue.z);
+			ret->Impl->appendTranslation(index, j == 0 ? 0.0 : (t.mTime / mDuration), t.mValue.x, t.mValue.y, t.mValue.z);
 		}
 	}
 }
@@ -613,23 +605,23 @@ Animation* loadAnimationFromBlender(const char * path, std::map<std::string, uns
 	__beginAnimationLoad(path, importer, FramesNamesIndex, ret, scene);
 
 	{
-		auto pFrameIndex = FramesNamesIndex.find("RootNode");
-		if (pFrameIndex == FramesNamesIndex.end())
-		{
-			throw "";
-		}
+		//auto pFrameIndex = FramesNamesIndex.find("RootNode");
+		//if (pFrameIndex == FramesNamesIndex.end())
+		//{
+		//	throw "";
+		//}
 
-		auto index = pFrameIndex->second;
+		//auto index = pFrameIndex->second;
 
-		auto RootTransform = aiMatrixToSimpleMathMatrix(scene->mRootNode->mChildren[0]->mTransformation) * aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation);
+		//auto RootTransform = aiMatrixToSimpleMathMatrix(scene->mRootNode->mChildren[0]->mTransformation) * aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation);
 
-		ret->Impl->setJoint(index, RootTransform);
-		ret->Impl->getJointSQT(index, ret->CurrentJoints[index]);
+		//ret->Impl->setJoint(index, RootTransform);
+		//ret->Impl->getJointSQT(index, ret->CurrentJoints[index]);
 
 		collectBones(scene->mRootNode->mChildren[0], ret->Impl, &(ret->CurrentJoints), &FramesNamesIndex, "Armature_");
 	}
 
-	__grabAnimationChannels(FramesNamesIndex, ret, scene);
+	__grabAnimationChannels(FramesNamesIndex, ret, scene, "Armature_");
 
 	return ret;
 }
@@ -643,18 +635,18 @@ Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsi
 	__beginAnimationLoad(path, importer, FramesNamesIndex, ret, scene);
 
 	{
-		auto pFrameIndex = FramesNamesIndex.find("RootNode");
-		if (pFrameIndex == FramesNamesIndex.end())
-		{
-			throw "";
-		}
+		//auto pFrameIndex = FramesNamesIndex.find("RootNode");
+		//if (pFrameIndex == FramesNamesIndex.end())
+		//{
+		//	throw "";
+		//}
 
-		auto index = pFrameIndex->second;
+		//auto index = pFrameIndex->second;
 
-		auto RootTransform = SimpleMath::Matrix::CreateScale(0.01f);//aiMatrixToSimpleMathMatrix(scene->mRootNode->mChildren[0]->mTransformation) * aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation);
+		//auto RootTransform = SimpleMath::Matrix::CreateScale(0.01f);//aiMatrixToSimpleMathMatrix(scene->mRootNode->mChildren[0]->mTransformation) * aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation);
 
-		ret->Impl->setJoint(index, RootTransform);
-		ret->Impl->getJointSQT(index, ret->CurrentJoints[index]);
+		//ret->Impl->setJoint(index, RootTransform);
+		//ret->Impl->getJointSQT(index, ret->CurrentJoints[index]);
 
 		collectBones(scene->mRootNode->mChildren[0], ret->Impl, &(ret->CurrentJoints), &FramesNamesIndex, nullptr);
 	}
@@ -673,16 +665,16 @@ Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> 
 	__beginAnimationLoad(path, importer, FramesNamesIndex, ret, scene);
 
 	{
-		auto pFrameIndex = FramesNamesIndex.find(scene->mRootNode->mName.C_Str());
-		if (pFrameIndex == FramesNamesIndex.end())
-		{
-			throw "";
-		}
+		//auto pFrameIndex = FramesNamesIndex.find(scene->mRootNode->mName.C_Str());
+		//if (pFrameIndex == FramesNamesIndex.end())
+		//{
+		//	throw "";
+		//}
 
-		auto index = pFrameIndex->second;
+		//auto index = pFrameIndex->second;
 
-		ret->Impl->setJoint(index, aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation));
-		ret->Impl->getJointSQT(index, ret->CurrentJoints[index]);
+		//ret->Impl->setJoint(index, aiMatrixToSimpleMathMatrix(scene->mRootNode->mTransformation));
+		//ret->Impl->getJointSQT(index, ret->CurrentJoints[index]);
 
 		collectBones(scene->mRootNode, ret->Impl, &(ret->CurrentJoints), &FramesNamesIndex, replace);
 	}
@@ -692,7 +684,7 @@ Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> 
 	return ret;
 }
 
-void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations)
+void extractAnimationMeta(Animation * anim, bool extractHeight, double duration)
 {
 	auto ret = (Animation2*)anim;
 
@@ -704,8 +696,8 @@ void extractAnimationMeta(Animation * anim, bool extractHeight, double duration,
 	//else
 
 	//ret->Impl->met
-	ret->Impl->extractRootMotionToMeta0(64, 7, 2, 0, extractHeight, getSkeletMatrix, calculateFramesTransformations);
-	ret->Impl->extractHandsToMeta1AndMeta2(64, 54, 31, getSkeletMatrix, calculateFramesTransformations);//findTransformationFrameByName(skelet->frame, "LeftHand"), findTransformationFrameByName(skelet->frame, "RightHand")
+	ret->Impl->extractMeta(extractHeight);// LeftToeEndJointIndex, RightToeEndJointIndex, , LeftHandJointIndex, RightHandJointIndex);//, getSkeletMatrix, calculateFramesTransformations);
+	//ret->Impl->extractHandsToMeta1AndMeta2(HipsJointIndex, LeftHandJointIndex, RightHandJointIndex);// , getSkeletMatrix, calculateFramesTransformations);//findTransformationFrameByName(skelet->frame, "LeftHand"), findTransformationFrameByName(skelet->frame, "RightHand")
 }
 
 void AnimationSetJointT(Animation * anim, int JointNum, SimpleMath::Vector3 Translation)
@@ -754,14 +746,14 @@ void rotateHips(Animation * anim, SimpleMath::Quaternion Rotation)
 
 	//множества поз из тайм линии
 	{
-		auto& HipTranslationSamples = ret->Impl->JointsTranslationSamples[64].X;
+		auto& HipTranslationSamples = ret->Impl->JointsTranslationSamples[HipsJointIndex].X;
 
 		for (int i = 0; i < HipTranslationSamples.size(); i++)
 		{
 			HipTranslationSamples[i].payload = SimpleMath::Vector4::Transform(HipTranslationSamples[i].payload, Rotation);
 		}
 
-		auto& HipRotationSamples = ret->Impl->JointsRotationSamples[64].X;
+		auto& HipRotationSamples = ret->Impl->JointsRotationSamples[HipsJointIndex].X;
 
 		for (int i = 0; i < HipRotationSamples.size(); i++)
 		{
@@ -775,11 +767,11 @@ void rotateHips(Animation * anim, SimpleMath::Quaternion Rotation)
 
 	//когда просто одна поза
 	{
-		auto& HipTranslation = ret->Impl->JointsTranslationSamples[64].Y;
+		auto& HipTranslation = ret->Impl->JointsTranslationSamples[HipsJointIndex].Y;
 
 		HipTranslation = SimpleMath::Vector4::Transform(HipTranslation, Rotation);
 
-		auto& HipRotation = ret->Impl->JointsRotationSamples[64].Y;
+		auto& HipRotation = ret->Impl->JointsRotationSamples[HipsJointIndex].Y;
 
 		SimpleMath::Quaternion Q1(Rotation);
 

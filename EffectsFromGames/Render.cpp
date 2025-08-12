@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <wchar.h>
+
 extern float ViewPortWidth;
 
 extern float ViewPortHeight;
@@ -26,6 +27,12 @@ extern Character* Eve;
 extern StaticObject * Pool;
 
 extern StaticObject * Ladder;
+
+extern StaticObject * LeftHolster;
+
+extern StaticObject * RightHolster;
+
+extern StaticObject * Gun;
 
 extern IAnimationGraph2 * EveAnimationGraph;
 
@@ -55,6 +62,11 @@ SimpleMath::Vector3 FallingAndHangOn_03;
 
 SimpleMath::Matrix FallingAndHangOn_Plane;
 extern IClimbingPathHelper* ClimbingPathHelper;
+
+extern Character * Mannequin;
+
+extern Animation * MannequinPose;
+
 //exports
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 void set_scene_world_matrix_into_camera_origin();
@@ -178,11 +190,18 @@ void CALLBACK OnD3D11FrameRender(ID3D11Device* pd3dDevice, ID3D11DeviceContext* 
 	using namespace SimpleMath;
 
 	{
-		context->GSSetConstantBuffers(0, 1, constantBuffersToArray(*(G->scene_constant_buffer)));
-
 		context->VSSetConstantBuffers(0, 1, constantBuffersToArray(*(G->scene_constant_buffer)));
 
 		context->VSSetConstantBuffers(1, 1, constantBuffersToArray(*(G->bone_to_model_constant_buffer)));
+
+
+		context->GSSetConstantBuffers(0, 1, constantBuffersToArray(*(G->scene_constant_buffer)));
+
+
+		context->PSSetConstantBuffers(0, 1, constantBuffersToArray(*(G->scene_constant_buffer)));
+
+		context->PSSetConstantBuffers(1, 1, constantBuffersToArray(*(G->post_proccess_constant_buffer)));
+
 
 		context->PSSetSamplers(0, 1, samplerStateToArray(G->render_states->AnisotropicWrap()));
 
@@ -303,15 +322,20 @@ void OnProccessGlow(ID3D11DeviceContext* context, double fTime, float fElapsedTi
 //render capsule
 void std_set_world_matrix(SimpleMath::Matrix & w);
 //extern SimpleMath::Vector3 ballisticFinish;
+
 void helpers_RenderCapsule(ID3D11DeviceContext* context, float fElapsedTime, Capsule & capsule, bool _ShowCapsule)
 {
 	scene_state.vClipPlane2 = SimpleMath::Vector4(1.f, 1.f, 1.f, 1.f);
 
+	const auto MannequinWorldFrame = GWorld.WorldTransforms["MannequinWorldFrame"];
+
 	if (ShowJoints)
 	{
-		getJointFrame(Eve, "Hips", [context](SimpleMath::Matrix M){
+		//getJointFrame(Eve, "Hips", [context](SimpleMath::Matrix M){
+		getJointFrame(Mannequin, "Hips", [context, MannequinWorldFrame](SimpleMath::Matrix M){
 			std_set_world_matrix(
-				M * SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix()
+				//M * SimpleMath::Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) * GWorld.Capsules["eve"].getMatrix()
+				M * MannequinWorldFrame
 			);
 			set_scene_constant_buffer(context);
 			G->cylinder_model->Draw(G->unlit_white_effect.get(), G->dxtk_primitive_to_unlit_white_input_layout.Get(), false, false, [=]{
@@ -777,6 +801,35 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 		context->RSSetState(G->render_states->CullCounterClockwise());
 	});
 
+	///render HolstersAndGuns
+	//SimpleMath::Matrix getFrameTransformation(TransformationFrame * Frame);
+	/*getFrameTransformation(LeftHolster->frame) **/
+	/*{
+
+		auto world_matrix = SimpleMath::Matrix::CreateTranslation(0, 1, 0) * SimpleMath::Matrix::CreateScale(GWorld.Boxes["platform10"].size) * GWorld.Boxes["platform10"].getMatrix();
+		std_set_world_matrix(world_matrix);
+		set_scene_constant_buffer(context);
+		drawFrames(LeftHolster->frame, context, G->std_lit_effect.get(), G->eve_input_layout.Get(), [=]{
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+	}
+	{
+		auto world_matrix = SimpleMath::Matrix::CreateTranslation(0, 1, 0) * SimpleMath::Matrix::CreateScale(GWorld.Boxes["platform10"].size) * GWorld.Boxes["platform10"].getMatrix();
+		std_set_world_matrix(world_matrix);
+		set_scene_constant_buffer(context);
+		drawFrames(RightHolster->frame, context, G->std_lit_effect.get(), G->eve_input_layout.Get(), [=]{
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+	}
+	{
+		auto world_matrix = SimpleMath::Matrix::CreateTranslation(0, 1, 0) * SimpleMath::Matrix::CreateScale(GWorld.Boxes["platform10"].size) * GWorld.Boxes["platform10"].getMatrix();
+		std_set_world_matrix(world_matrix);
+		set_scene_constant_buffer(context);
+		drawFrames(Gun->frame, context, G->std_lit_effect.get(), G->eve_input_layout.Get(), [=]{
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+	}*/
+
 	///render pool
 	std_set_world_matrix(Matrix(GWorld.WorldTransforms["pool"]));
 	set_scene_constant_buffer(context);
@@ -835,7 +888,6 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 	///render eve
 	if (false)
 	{
-		SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
 		AnimationBase* animation;
 		if (EveAnimationGraph->getAnimationBlend()->isPlaying())
 		{
@@ -849,7 +901,7 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 		{
 			auto & cj = animation->CurrentJoints[i];
 
-			(*GetSkeletonMatrix(Eve->skelet, i)) = cj.matrix();
+			(*GetSkeletonMatrix(Eve, i)) = cj.matrix();
 		}
 		calculateFramesTransformations(Eve->frame, Matrix::Identity);
 	}
@@ -857,12 +909,12 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 	{
 		auto X = SimpleMath::Matrix::CreateRotationX(-90.f*(3.14f / 180.f));
 		auto Y = SimpleMath::Vector3::TransformNormal(SimpleMath::Vector3(0, 1, 0), X);
-		SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
+
 		set_eve_world_matrix(
 			SimpleMath::Matrix::CreateTranslation(0.f, 0.5f, 0.f) *
 			SimpleMath::Matrix::CreateScale(5, 100, 5) * 
 			SimpleMath::Matrix::CreateRotationX(-90.f*(3.14f / 180.f)) *
-			*GetSkeletonMatrix(Eve->skelet, 64) *
+			*GetSkeletonMatrix(Eve, HipsJointIndex) *
 			Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) *
 			GWorld.Capsules["eve"].getMatrix()
 		);
@@ -876,7 +928,7 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 		set_scene_constant_buffer(context);
 	}
 	{
-		set_bone_to_model_palite_transforms(calculateAnimationPalite(Eve->skelet));
+		set_bone_to_model_palite_transforms(calculateAnimationPalite(Eve));
 		set_bone_to_model_palite_constant_buffer(context);
 	}
 	if (!ShowJoints) drawFrames(Eve->frame, context, G->eve_effect.get(), G->eve_input_layout.Get(), [=]{
@@ -885,13 +937,84 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 
 		context->RSSetState(G->render_states->CullCounterClockwise());
 	});
-	
+	//NPC
+	{
+		{
+			set_eve_world_matrix(Matrix(GWorld.WorldTransforms["MannequinWorldFrame"]));
+			set_scene_constant_buffer(context);
+		}
+		{
+			set_bone_to_model_palite_transforms(calculateAnimationPalite(Mannequin));
+			set_bone_to_model_palite_constant_buffer(context);
+		}
+		drawFrames(Mannequin->frame, context, G->eve_effect.get(), G->eve_input_layout.Get(), 
+		[=]{
+			context->PSSetShaderResources(1, 1, shaderResourceViewToArray(G->eve_n_texture.Get()));
+			context->PSSetShaderResources(3, 1, shaderResourceViewToArray(G->eve_d_texture.Get()));
+		
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		},
+		[=](TransformationFrame * Frame){
+			extern SceneState scene_state;
+			scene_state.MeshColor = SimpleMath::Vector4::Zero;
+			if (Frame->Name == "Alpha_Surface")
+			{
+				scene_state.MeshColor = SimpleMath::Vector4(99.f / 255, 134.f / 255, 148.f / 255, 1);
+			}
+			else if (Frame->Name == "Alpha_Joints")
+			{
+				scene_state.MeshColor = SimpleMath::Vector4(45.f / 255, 51.f / 255, 51.f / 255, 1);
+			}
+			set_scene_constant_buffer(context);
+		});
+		extern SceneState scene_state;
+		scene_state.MeshColor = SimpleMath::Vector4::Zero;
+		set_scene_constant_buffer(context);
+	}
+	///render eve sockets
+	{
+		SimpleMath::Matrix GetFrameTransformation(TransformationFrame * Frame);
+		TransformationFrame* findTransformationFrameByName(TransformationFrame * Frame, char * JointName);
+
+		SimpleMath::Matrix world_matrix;
+
+		world_matrix = GetFrameTransformation(findTransformationFrameByName(Eve->frame, "LeftLegHolster")) *	Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) *	GWorld.Capsules["eve"].getMatrix();
+		std_set_world_matrix(world_matrix);
+		set_scene_constant_buffer(context);
+		drawFrames(LeftHolster->frame, context, G->lambert_effect.get(), G->eve_input_layout.Get(), [=]{
+			context->PSSetShaderResources(0, 1, shaderResourceViewToArray(G->Holster_Albedo_M.Get()));
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+
+		world_matrix = GetFrameTransformation(findTransformationFrameByName(Eve->frame, "RightLegHolster")) * Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) *	GWorld.Capsules["eve"].getMatrix();
+		std_set_world_matrix(world_matrix);
+		set_scene_constant_buffer(context);
+		drawFrames(RightHolster->frame, context, G->lambert_effect.get(), G->eve_input_layout.Get(), [=]{
+			context->PSSetShaderResources(0, 1, shaderResourceViewToArray(G->Holster_Albedo_M.Get()));
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+
+		world_matrix = GetFrameTransformation(findTransformationFrameByName(Eve->frame, "LeftGun")) *	Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) *	GWorld.Capsules["eve"].getMatrix();
+		std_set_world_matrix(world_matrix);
+		set_scene_constant_buffer(context);
+		drawFrames(Gun->frame, context, G->lambert_effect.get(), G->eve_input_layout.Get(), [=]{
+			context->PSSetShaderResources(0, 1, shaderResourceViewToArray(G->Female_Western_Gun_M.Get()));
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+
+		world_matrix = GetFrameTransformation(findTransformationFrameByName(Eve->frame, "RightGun")) * Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) *	GWorld.Capsules["eve"].getMatrix();
+		std_set_world_matrix(world_matrix);
+		set_scene_constant_buffer(context);
+		drawFrames(Gun->frame, context, G->lambert_effect.get(), G->eve_input_layout.Get(), [=]{
+			context->PSSetShaderResources(0, 1, shaderResourceViewToArray(G->Female_Western_Gun_M.Get()));
+			context->RSSetState(G->render_states->CullCounterClockwise());
+		});
+	}
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//debug poses
 	if (false && EveAnimationGraph->getAnimationName() == "Hanging_Idle_With_Leg")
 	{
 		SimpleMath::Matrix GetJumpFromWallStartTransform(AnimationBase *Anim);
-		SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
 		std::vector<JointSQT>& GetAnimationJointsSet(AnimationBase* blend, int index, float Time = 0);
 		auto AnimationBlend = EveAnimationGraph->getAnimationBlend();
 		if (AnimationBlend->isPlaying())
@@ -916,7 +1039,7 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 				std::vector<JointSQT>& JointsSet = GetAnimationJointsSet(AnimationBlend, i);
 				for (int j = 0; j < JointsSet.size(); j++)
 				{
-					(*GetSkeletonMatrix(Eve->skelet, j)) = JointsSet[j].matrix();
+					(*GetSkeletonMatrix(Eve, j)) = JointsSet[j].matrix();
 				}
 				//
 				calculateFramesTransformations(Eve->frame, Matrix::Identity);
@@ -925,7 +1048,7 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 					set_scene_constant_buffer(context);
 				}
 				{
-					set_bone_to_model_palite_transforms(calculateAnimationPalite(Eve->skelet));
+					set_bone_to_model_palite_transforms(calculateAnimationPalite(Eve));
 					set_bone_to_model_palite_constant_buffer(context);
 				}
 				drawFrames(Eve->frame, context, G->eve_effect.get(), G->eve_input_layout.Get(), [=]{
@@ -938,7 +1061,7 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 					SimpleMath::Matrix::CreateTranslation(0.f, 0.5f, 0.f) *
 					SimpleMath::Matrix::CreateScale(5, 100, 5) *
 					SimpleMath::Matrix::CreateRotationX(-90.f*(3.14f / 180.f)) *
-					*GetSkeletonMatrix(Eve->skelet, 64) *
+					*GetSkeletonMatrix(Eve, HipsJointIndex) *
 					Matrix(GWorld.WorldTransforms["eveSkinnedModel"]) *
 					Base
 				);
@@ -990,8 +1113,6 @@ void OnRenderScene(ID3D11DeviceContext* context, double fTime, float fElapsedTim
 
 void PostProccess(ID3D11DeviceContext* context)
 {
-	context->PSSetConstantBuffers(1, 1, constantBuffersToArray(*(G->post_proccess_constant_buffer)));
-
 	context->PSSetSamplers(0, 1, samplerStateToArray(G->render_states->AnisotropicClamp()));
 
 	setViewPort(context);

@@ -35,8 +35,6 @@ extern SimpleMath::Vector3 gravitation;
 
 extern IAnimationGraph2 * EveAnimationGraph;
 
-SimpleMath::Vector3 GetCharacterJointTranslation(CharacterSkelet * characterSkelet, int Index);
-
 extern Character * Eve;
 
 extern World GWorld;
@@ -365,7 +363,7 @@ struct FallingAndHangOnAnimation : public Animation
 		Poses[3] = &ThirdPose->CurrentJoints;
 		Poses[4] = nullptr;
 
-		(*Poses[3])[64][1] = SimpleMath::Quaternion::CreateFromYawPitchRoll(-180.f*(acos(-1.0f) / 180.f), -36.613449f*(acos(-1.0f) / 180.f), -0.814534f*(acos(-1.0f) / 180.f));
+		(*Poses[3])[HipsJointIndex][1] = SimpleMath::Quaternion::CreateFromYawPitchRoll(-180.f*(acos(-1.0f) / 180.f), -36.613449f*(acos(-1.0f) / 180.f), -0.814534f*(acos(-1.0f) / 180.f));
 
 		PosesTimes[0] = 1;
 		PosesTimes[1] = 0.33;
@@ -529,7 +527,7 @@ struct FallingAndHangOnAnimation : public Animation
 
 			joint[0] = SimpleMath::Vector4::Lerp(joint1[0], joint2[0], lerpParameter);
 			joint[1] = SimpleMath::Quaternion::Lerp(joint1[1], joint2[1], lerpParameter);
-			if (i != 64)
+			if (i != HipsJointIndex)
 			{
 				joint[2] = SimpleMath::Vector4::Lerp(joint1[2], joint2[2], lerpParameter);
 			}
@@ -659,13 +657,13 @@ struct FallingAndHangOnAnimation : public Animation
 		auto RotToOrigin = SimpleMath::Quaternion::CreateFromAxisAngle(RotationAxis, -PendulumPrimaryInitAlfa);
 
 		auto Rot = SimpleMath::Quaternion::Concatenate(SimpleMath::Quaternion::CreateFromAxisAngle(RotationAxis, PendulumAlfa), RotToOrigin);
-		auto Loc = SimpleMath::Vector3::Transform(vec4ToVec3(CurrentJoints[64][2]) - RightHandJointPosition, Rot) + RightHandJointPosition;
+		auto Loc = SimpleMath::Vector3::Transform(vec4ToVec3(CurrentJoints[HipsJointIndex][2]) - RightHandJointPosition, Rot) + RightHandJointPosition;
 
 		PendulumRootFrame[0] = SimpleMath::Vector4(1, 1, 1, 1);
-		PendulumRootFrame[1] = SimpleMath::Quaternion::Concatenate(Rot, CurrentJoints[64][1]);
+		PendulumRootFrame[1] = SimpleMath::Quaternion::Concatenate(Rot, CurrentJoints[HipsJointIndex][1]);
 		PendulumRootFrame[2] = SimpleMath::Vector4(Loc.x, Loc.y, Loc.z, 1);
 
-		CurrentJoints[64] = PendulumRootFrame;
+		CurrentJoints[HipsJointIndex] = PendulumRootFrame;
 	}
 	void RotateAroundRightArm()
 	{
@@ -786,7 +784,7 @@ struct FallingAndHangOnAnimation : public Animation
 
 			auto Offset = RightArmJointPosition - GetRightArmJointLocation(); //RightHandJointPosition - GetRightHandJointLocation();
 
-			CurrentJoints[64][2] = CurrentJoints[64][2] + vec4(Offset, 0.f);
+			CurrentJoints[HipsJointIndex][2] = CurrentJoints[HipsJointIndex][2] + vec4(Offset, 0.f);
 		}
 
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -809,13 +807,13 @@ struct FallingAndHangOnAnimation : public Animation
 			auto TargetForward = -state_hanging_Ledge_Box.worldBackSide; //SimpleMath::Vector3(0, 0, -1);
 			TargetForward.Normalize();
 
-			FallingAndHangAdjustOrientationToEdge(InitAdjustOrientationToEdge, elapsedTime, Rotated180Forward, TargetForward, 0.5f*(LeftHandJointPosition + RightHandJointPosition), CurrentJoints[64]);
+			FallingAndHangAdjustOrientationToEdge(InitAdjustOrientationToEdge, elapsedTime, Rotated180Forward, TargetForward, 0.5f*(LeftHandJointPosition + RightHandJointPosition), CurrentJoints[HipsJointIndex]);
 				
 			ChainHipsToRightHandFromLocalToModelSpace();
 
 			auto Offset = RightHandJointPosition - GetRightHandJointLocation();
 
-			CurrentJoints[64][2] = CurrentJoints[64][2] + vec4(Offset, 0.f);
+			CurrentJoints[HipsJointIndex][2] = CurrentJoints[HipsJointIndex][2] + vec4(Offset, 0.f);
 		}
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//Oscilation
@@ -893,7 +891,7 @@ struct FallingAndHangOnAnimation : public Animation
 				RotationAxis = SimpleMath::Vector3::TransformNormal(-state_hanging_Ledge_Box.worldForward, modelTransform.Invert());
 				RotationAxis.Normalize();
 
-				PrevRootRotation = CurrentJoints[64][1];
+				PrevRootRotation = CurrentJoints[HipsJointIndex][1];
 			}
 
 			PrevIntoTargetBox = NextIntoTargetBox;
@@ -942,13 +940,13 @@ struct FallingAndHangOnAnimation : public Animation
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//Compute Delta Translation
 		{
-			const auto Delta = SimpleMath::Vector3::TransformNormal(vec4ToVec3(CurrentJoints[64][2] - PrevRootLocation), modelTransform) + getDeltaTranslation();
+			const auto Delta = SimpleMath::Vector3::TransformNormal(vec4ToVec3(CurrentJoints[HipsJointIndex][2] - PrevRootLocation), modelTransform) + getDeltaTranslation();
 
-			PrevRootLocation = CurrentJoints[64][2];
+			PrevRootLocation = CurrentJoints[HipsJointIndex][2];
 
 			DeltaTranslation = Delta;
 
-			CurrentJoints[64][2] = (*Poses[0])[64][2];
+			CurrentJoints[HipsJointIndex][2] = (*Poses[0])[HipsJointIndex][2];
 		}
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//Compute Delta Rotation
@@ -956,13 +954,13 @@ struct FallingAndHangOnAnimation : public Animation
 		{
 			Quat Q;
 
-			Q.decompose(0.0f, PrevRootRotation, CurrentJoints[64][1]);
+			Q.decompose(0.0f, PrevRootRotation, CurrentJoints[HipsJointIndex][1]);
 
-			PrevRootRotation = CurrentJoints[64][1];
+			PrevRootRotation = CurrentJoints[HipsJointIndex][1];
 
 			DeltaRotation = Q.DeltaRotation;
 
-			CurrentJoints[64][1] = Q.RootRotation;
+			CurrentJoints[HipsJointIndex][1] = Q.RootRotation;
 		}
 		/////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//Advanse Animation Time
@@ -1083,8 +1081,8 @@ struct FallingAndHangOnAnimation : public Animation
 
 		LeftHandTargetDefined = false;
 
-		PrevRootLocation = (*Poses[0])[64][2];
-		PrevRootRotation = (*Poses[0])[64][1];
+		PrevRootLocation = (*Poses[0])[HipsJointIndex][2];
+		PrevRootRotation = (*Poses[0])[HipsJointIndex][1];
 
 		InitAdjustOrientationToEdge = false;
 	}

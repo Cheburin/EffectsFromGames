@@ -294,17 +294,19 @@ struct FABRIK : public IKSolverInterface
 
 	void init(Character * character)
 	{
-		chains.resize(4);
+		chains.resize(5);
 		chains[0].resize(1024);
 		chains[1].resize(1024);
 		chains[2].resize(1024);
 		chains[3].resize(1024);
+		chains[4].resize(1024);
 
-		distantces.resize(4);
+		distantces.resize(5);
 		distantces[0].resize(1024);
 		distantces[1].resize(1024);
 		distantces[2].resize(1024);
 		distantces[3].resize(1024);
+		distantces[4].resize(1024);
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

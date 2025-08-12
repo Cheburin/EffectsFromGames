@@ -17,7 +17,6 @@
 #include <assimp/scene.h>           // Output data structure
 #include <assimp/postprocess.h>     // Post processing flags
 
-SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
 //void blendAnimationInitBlend(Animation* currentAnimation, Animation* _animation1, Animation* _animation2, double local_duration, std::function<double __cdecl(double, double)> _BlendFunction, std::function<std::pair<SimpleMath::Vector3, SimpleMath::Vector3> __cdecl(double, Animation*, Animation*)> _AdvanseFunction);
 void initBlend(AnimationLinearBlend* blend, AnimationBase* _animation1, AnimationBase* _animation2, double local_duration,
 	std::function<double __cdecl(double, double)> _BlendFunction,
@@ -61,8 +60,6 @@ void __BlendSetRoot2Rotation(AnimationBase* blend, SimpleMath::Quaternion RootRo
 
 struct AnimationGraph2 : IAnimationGraph2
 {
-	CharacterSkelet * skelet;
-
 	AnimationGraphNode * CurrentConditionNode;
 
 	bool bAnimationBlendActivated;
@@ -147,11 +144,10 @@ struct AnimationGraph2 : IAnimationGraph2
 		delete animationBlend;
 	}
 
-	AnimationGraph2(CharacterSkelet * newSkelet, AnimationLinearBlend * blend, AnimationBase* animationPose)
+	AnimationGraph2(AnimationLinearBlend * blend, AnimationBase* animationPose)
 	{
 		nodes.reserve(1024); // very impotent!!! due to link on this memory via create map
 
-		skelet = newSkelet;
 		animationBlend = blend;
 		animationPoseForBlend = animationPose;
 
@@ -355,7 +351,7 @@ protected:
 
 };
 
-IAnimationGraph2 * makeAnimationGraph(CharacterSkelet * skelet, AnimationLinearBlend * transitionAnim, AnimationBase* animationPose)
+IAnimationGraph2 * makeAnimationGraph(AnimationLinearBlend * transitionAnim, AnimationBase* animationPose)
 {
-	return new AnimationGraph2(skelet, transitionAnim, animationPose);
+	return new AnimationGraph2(transitionAnim, animationPose);
 }

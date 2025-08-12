@@ -116,9 +116,6 @@
     <ClCompile Include="Animation.cpp">
       <Filter>CallBack</Filter>
     </ClCompile>
-    <ClCompile Include="AnimationState.cpp">
-      <Filter>CallBack</Filter>
-    </ClCompile>
     <ClCompile Include="AnimationBlend.cpp">
       <Filter>CallBack</Filter>
     </ClCompile>
@@ -202,6 +199,9 @@
     </ClCompile>
     <ClCompile Include="AnimationClasses.h" />
     <ClCompile Include="AnimationClasses.cpp" />
+    <ClCompile Include="AnimationsCombiner.cpp">
+      <Filter>CallBack</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CLInclude Include="resource.h">

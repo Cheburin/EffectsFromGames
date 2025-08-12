@@ -48,13 +48,11 @@ struct BallisticFlyAnimation : public Animation
 		return ballisticNextLoc - ballisticPrevLoc;
 	}
 
-	BallisticFlyAnimation(std::map<std::string, unsigned int> & FramesNamesIndex,
-		std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+	BallisticFlyAnimation(std::map<std::string, unsigned int> & FramesNamesIndex)
 	{
 		Animation* makeAnimationTransition(Animation* _animation1, Animation* _animation2, double local_duration, std::function<double __cdecl(double, double)> _BlendFunction, std::function<std::pair<SimpleMath::Vector3, SimpleMath::Vector3> __cdecl(double, Animation*, Animation*)> _AdvanseFunction);
 		Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex, char * replace = nullptr);
 		Animation* loadAnimationFromBlender(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
-		void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
 
 		Impl = new AnimationRep();
 
@@ -65,7 +63,7 @@ struct BallisticFlyAnimation : public Animation
 		{
 			Animation* ActionPose = loadAnimation(ActionPoseFilePathes[i], FramesNamesIndex);
 			ActionPose->TransformJointSamples(
-				64,
+				HipsJointIndex,
 				"rotation",
 				[&signs, i](SimpleMath::Vector4 v){
 					auto RootRotation = SimpleMath::Quaternion(v.x, v.y, v.z, v.w);
@@ -82,13 +80,13 @@ struct BallisticFlyAnimation : public Animation
 						   RootRotation)));
 			});
 			ActionPose->TransformJointSamples(
-				64,
+				HipsJointIndex,
 				"translation",
 				[](SimpleMath::Vector4 v){
 					v = SimpleMath::Vector4(v.x, v.y + 40.0f, v.z, 0);
 					return v;
 			});
-			extractAnimationMeta(ActionPose, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+			extractAnimationMeta(ActionPose, true, 1.0f);
 
 			ActionPose->advanse(0, SimpleMath::Vector3(), SimpleMath::Quaternion());
 			JointsByPose[i] = ActionPose->CurrentJoints;
@@ -187,9 +185,9 @@ struct BallisticFlyAnimation : public Animation
 	};
 };
 
-Animation * CreateBallisticFlyAnimation(std::map<std::string, unsigned int> & FramesNamesIndex,	std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+Animation * CreateBallisticFlyAnimation(std::map<std::string, unsigned int> & FramesNamesIndex)
 {
-	return new BallisticFlyAnimation(FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	return new BallisticFlyAnimation(FramesNamesIndex);
 }
 
 void SetBallisticTrajectoryParams(AnimationBase * Animation, SimpleMath::Vector3 & ballisticG, SimpleMath::Vector3 & ballisticInitialVelocity)

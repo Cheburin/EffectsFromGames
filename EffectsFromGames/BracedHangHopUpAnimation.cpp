@@ -19,7 +19,6 @@
 
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex, char * replace = nullptr);
-void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
 SimpleMath::Vector3 GetEdgeHorizontalJumpAnimation_GetHandLocation(bool IsLeft);
 
 void GetRelativeJoint(JointSQT & Joint1, JointSQT & Joint2);
@@ -117,8 +116,8 @@ struct BracedHangHopUpAnimation : public Animation
 		EveIKSolver->solve(2, 0, 2, Target, total_iter, epsilon);
 
 		SpinRotation = TDeltaRotation2(substructJointsLocations(refChain[1], refChain[0]), substructJointsLocations(chain[1], chain[0]));
-		SpinRotation.Transform(refChain[1][2], refChain[0][2]);
-		SpinRotation.Transform(refChain[2][2], refChain[0][2]);
+		refChain[1].Rotate(SpinRotation.Delta, refChain[0][2]);
+		refChain[2].Rotate(SpinRotation.Delta, refChain[0][2]);
 		ArmRotation = TDeltaRotation2(substructJointsLocations(refChain[2], refChain[1]), substructJointsLocations(chain[2], chain[1]));
 
 		//sprintf(DebugBuffer, "BracedHangHopUpAnimation CalcSpinAndArmRotations SpinRotation %f ArmRotation %f\n", (SpinRotation.RotationAngle / XM_PI)*180.f, (ArmRotation.RotationAngle / XM_PI)*180.f); Debug();
@@ -135,58 +134,40 @@ struct BracedHangHopUpAnimation : public Animation
 
 	void ApplySpinAndArmRotations()
 	{
-		auto & leftHandChain = EveIKSolver->chainRef(2);
-		auto & rightHandChain = EveIKSolver->chainRef(3);
+		auto & spineChain = EveIKSolver->chainRef(2);
+		auto & leftHandChain = EveIKSolver->chainRef(3);
+		auto & rightHandChain = EveIKSolver->chainRef(4);
 
+		auto & hipsSpineChainRef = jointsRefsChains.HipsSpine2;
 		auto & hipsLeftHandChainRef = jointsRefsChains.HipsLeftHand;
 		auto & hipsRightHandChainRef = jointsRefsChains.HipsRightHand;
 
 		auto& CurrentJoints = EveAnimationGraph->getPlayingAnimation()->CurrentJoints;
 
-		//auto IndexRightArm = jointsRefsChains.HipsRightHand[jointsRefsChains.HipsRightHand.size() - 3];
-		//SpinRotation.Transform(CurrentJoints[hipsHandChainRef[1]][2], CurrentJoints[hipsHandChainRef[0]][2]);
-		//SpinRotation.Add(CurrentJoints[hipsHandChainRef[1]][1]);
-		//ArmRotation.Add(CurrentJoints[hipsHandChainRef[hipsHandChainRef.size() - 3]][1]);
-		//ArmRotation.Add(CurrentJoints[IndexRightArm][1]);
-
+		JointHelpers::AnimToChain(hipsSpineChainRef, EveAnimationGraph->getPlayingAnimation(), spineChain);
 		JointHelpers::AnimToChain(hipsLeftHandChainRef, EveAnimationGraph->getPlayingAnimation(), leftHandChain);
 		JointHelpers::AnimToChain(hipsRightHandChainRef, EveAnimationGraph->getPlayingAnimation(), rightHandChain);
 
+		JointHelpers::localToModel(hipsSpineChainRef.size(), spineChain);
 		JointHelpers::localToModel(hipsLeftHandChainRef.size(), leftHandChain);
+		JointHelpers::localToModel(hipsRightHandChainRef.size(), rightHandChain);
 
-		/*
-		SpinRotation.Transform(chain[1][2], chain[0][2]);
-		SpinRotation.Add(chain[1][1]);
-		GetRelativeJoint(chain[0], chain[1]);
+		int HipsIndex = 0;
+		int SpineIndex = 1;
+		int ArmIndex = hipsLeftHandChainRef.size() - 3;
+		int ShoulderIndex = hipsLeftHandChainRef.size() - 4;
 
-		SpinRotation.Add(chain[hipsHandChainRef.size() - 3][1]);
-		ArmRotation.Add(chain[hipsHandChainRef.size() - 3][1]);
-		GetRelativeJoint(chain[hipsHandChainRef.size() - 4], chain[hipsHandChainRef.size() - 3]);
+		spineChain[SpineIndex].Rotate(SpinRotation.Delta, spineChain[HipsIndex][2]);
+		leftHandChain[ArmIndex].Rotate(ArmRotation.Delta);
+		rightHandChain[ArmIndex].Rotate(ArmRotation.Delta);
 
-		CurrentJoints[hipsHandChainRef[1]] = chain[1];
-		CurrentJoints[hipsHandChainRef[hipsHandChainRef.size() - 3]] = chain[hipsHandChainRef.size() - 3];
-		*/
+		GetRelativeJoint(spineChain[HipsIndex], spineChain[SpineIndex]);
+		GetRelativeJoint(leftHandChain[ShoulderIndex], leftHandChain[ArmIndex]);
+		GetRelativeJoint(rightHandChain[ShoulderIndex], rightHandChain[ArmIndex]);
 
-		SpinRotation.Transform(leftHandChain[1][2], leftHandChain[0][2]);
-		GetEdgeHorizontalJumpAnimation_RotateChain(leftHandChain, SpinRotation.Delta, 1, hipsLeftHandChainRef.size() - 2);
-		GetEdgeHorizontalJumpAnimation_RotateChain(leftHandChain, ArmRotation.Delta, hipsLeftHandChainRef.size() - 3, hipsLeftHandChainRef.size() - 2);
-		//right hand
-		std::memcpy(&rightHandChain[0], &leftHandChain[0], sizeof(leftHandChain[0])*(hipsLeftHandChainRef.size() - 4));
-		JointHelpers::localToModel(hipsRightHandChainRef.size() - 4, hipsRightHandChainRef.size() - 2, rightHandChain);
-		GetEdgeHorizontalJumpAnimation_RotateChain(rightHandChain, ArmRotation.Delta, hipsRightHandChainRef.size() - 3, hipsRightHandChainRef.size() - 2);
-		//
-
-		GetRelativeJoint(leftHandChain[0], leftHandChain[1]);
-		GetRelativeJoint(leftHandChain[hipsLeftHandChainRef.size() - 4], leftHandChain[hipsLeftHandChainRef.size() - 3]);
-		//right hand
-		GetRelativeJoint(rightHandChain[hipsRightHandChainRef.size() - 4], rightHandChain[hipsRightHandChainRef.size() - 3]);
-		//
-
-		CurrentJoints[hipsLeftHandChainRef[1]] = leftHandChain[1];
-		CurrentJoints[hipsLeftHandChainRef[hipsLeftHandChainRef.size() - 3]] = leftHandChain[hipsLeftHandChainRef.size() - 3];
-		//right hand
-		CurrentJoints[hipsRightHandChainRef[hipsRightHandChainRef.size() - 3]] = rightHandChain[hipsRightHandChainRef.size() - 3];
-		//
+		CurrentJoints[hipsSpineChainRef[SpineIndex]] = spineChain[SpineIndex];
+		CurrentJoints[hipsLeftHandChainRef[ArmIndex]] = leftHandChain[ArmIndex];
+		CurrentJoints[hipsRightHandChainRef[ArmIndex]] = rightHandChain[ArmIndex];
 	}
 
 	void advanse(double elapsedTime, SimpleMath::Vector3& DeltaTranslation, SimpleMath::Quaternion& DeltaRotation)
@@ -212,8 +193,8 @@ struct BracedHangHopUpAnimation : public Animation
 			CurrentMetaChannels = CurrentPose->CurrentMetaChannels;
 		}
 
-		RootSampledRotation = SimpleMath::Quaternion(CurrentJoints[64][1]);
-		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
+		RootSampledRotation = SimpleMath::Quaternion(CurrentJoints[HipsJointIndex][1]);
+		CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(
 			RootDeltaRotation,
 			RootSampledRotation
 		);
@@ -283,7 +264,7 @@ struct BracedHangHopUpAnimation : public Animation
 			JointHelpers::ChainToAnim(jointsRefsChains.HipsRightHand.size() - 3, jointsRefsChains.HipsRightHand.size() - 1, jointsRefsChains.HipsRightHand, EveIKSolver->chainRef(1), EveAnimationGraph->getPlayingAnimation());
 		}
 
-		fillSkeletonTransformFromJoint(EveAnimationGraph->getPlayingAnimation(), Eve->skelet);
+		fillSkeletonTransformFromJoint(EveAnimationGraph->getPlayingAnimation(), Eve);
 		calculateFramesTransformations(Eve->frame, SimpleMath::Matrix::Identity);
 
 		{
@@ -388,13 +369,13 @@ struct BracedHangHopUpAnimation : public Animation
 
 };
 
-Animation* CreateBracedHangHopUpAnimation(std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+Animation* CreateBracedHangHopUpAnimation(std::map<std::string, unsigned int> & FramesNamesIndex)
 {
 	auto bracedHangHopUpAnimation = loadAnimation("Media\\Animations\\BracedHangHopUp.dae", FramesNamesIndex);
 	bracedHangHopUpAnimation->setRate(1.0 / 2.0f);
 	bracedHangHopUpAnimation->setLooping(false);
 	//bracedHangHopUpAnimation->AddOffset(-gravityInEveSystemCoordinates);
-	extractAnimationMeta(bracedHangHopUpAnimation, true, 1.0f, getSkeletMatrix, calculateFramesTrans);
+	extractAnimationMeta(bracedHangHopUpAnimation, true, 1.0f);
 	//bracedHangHopUpAnimation->TransformMetaSamples(
 	//	0,
 	//	[](SimpleMath::Vector4 v){

@@ -83,3 +83,10 @@ float state_HipsAlfa_WS;
 bool state_hanging_Toe_activated;
 char* state_hanging_Toe_Name;
 SimpleMath::Vector3 state_hanging_Toe_Location;
+
+int HipsJointIndex = -1;
+int LeftToeEndJointIndex = -1;
+int RightToeEndJointIndex = -1;
+int LeftHandJointIndex = -1;
+int RightHandJointIndex = -1;
+int HeadTopEndJointIndex = -1;

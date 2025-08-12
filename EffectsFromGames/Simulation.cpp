@@ -21,6 +21,10 @@ extern JointsRefsChainCollection jointsRefsChains;
 
 extern Character* Eve;
 
+extern Character * Mannequin;
+
+extern Animation * MannequinPose;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool simulation_state_manual_control = false;
@@ -99,6 +103,10 @@ extern std::string start_hanging_Ledge_Name;
 extern int start_hanging_Ledge_BoxIndex;
 extern std::string state_hanging_Ledge_Name;
 extern int state_hanging_Ledge_BoxIndex;
+extern AnimationBase* DebugAnimation;
+
+bool EquipPistols = false;
+void CombineAnimation(float deltaTime);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void updateOrientation(SimpleMath::Vector3 cameraDirection, SimpleMath::Vector3& _cameraPos, SimpleMath::Vector3& _cameraTarget){
@@ -327,7 +335,9 @@ void reñeiveKeyBoardInput(DirectX::Keyboard::State kb){
 		ShowJoints = !ShowJoints;
 	});
 	IsKeyPressed<F6Key>(kb, []{
-		state_play_debug_animation = !state_play_debug_animation;;
+		state_play_debug_animation = !state_play_debug_animation;
+		DebugAnimation->reset();
+		DebugAnimation->setPlaying(state_play_debug_animation);
 	});
 	IsKeyPressed<NumPad1Key>(kb, []{
 		state_play_debug_animation_pose = state_play_debug_animation_pose % 2 + 1;
@@ -348,9 +358,10 @@ void reñeiveKeyBoardInput(DirectX::Keyboard::State kb){
 	});
 	//IsKeyPressed<FKey>(kb, []{
 	//state_take_it = true;
-	IsKeyDown<FKey>(kb, []{
-		void UpdateJumpFromWallTrajectoryHandler(Animation *Anim);
-		UpdateJumpFromWallTrajectoryHandler(EveAnimationGraph->getAnimation<Animation>());
+	IsKeyPressed<FKey>(kb, []{
+		EquipPistols = !EquipPistols;
+		//void UpdateJumpFromWallTrajectoryHandler(Animation *Anim);
+		//UpdateJumpFromWallTrajectoryHandler(EveAnimationGraph->getAnimation<Animation>());
 	});
 	IsKeyPressed<GKey>(kb, []{
 		void SelectedJumpFromWallTrajectoryHandler(Animation *Anim);
@@ -378,8 +389,6 @@ void reñeiveKeyBoardInput(DirectX::Keyboard::State kb){
 
 //void physCollision(const Capsule& ca, const SimpleMath::Vector3 & worldDistance, float & T, SimpleMath::Vector3& impactPoint, SimpleMath::Vector3& impactNormal, std::string& objectName, int& objectType);
 SimpleMath::Vector3 physGetSlidingVector(const SimpleMath::Vector3 & worldDistance, float min_t, SimpleMath::Vector3& impactNormal);
-SimpleMath::Vector3 GetCharacterJointTranslation(CharacterSkelet * characterSkelet, int Index);
-SimpleMath::Matrix* GetSkeletonMatrix(CharacterSkelet * skelet, int index);
 
 //SimpleMath::Vector3 CollisionImpactNormal;
 //SimpleMath::Vector3 CollisionImpactPoint;
@@ -394,7 +403,6 @@ SimpleMath::Vector3 EveHandLocation[2];
 //	physCollision(ca, worldDistance, T, impactPoint, impactNormal, objectName, objectType);
 //}
 AnimationBase* EdgeHorizontalJumpAnimation_TestPoses(AnimationBase * Animation, float DeltaTime, int PoseIndex);
-extern AnimationBase* DebugAnimation;
 
 void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 {
@@ -482,6 +490,15 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 		////////////////////////////////////////////////////////////////////////////////////////////////////
 	}
 
+	////NPC
+	{
+		SimpleMath::Vector3 deltaTranslation;
+		SimpleMath::Quaternion deltaRotation;
+		MannequinPose->advanse(simulationTime, deltaTranslation, deltaRotation);
+		fillSkeletonTransformFromJoint(MannequinPose, Mannequin);
+		calculateFramesTransformations(Mannequin, Matrix::Identity);
+	}
+
 	////Eve Advanse Animation
 	SimpleMath::Vector3 deltaTranslation;
 	SimpleMath::Quaternion deltaRotation;
@@ -490,22 +507,24 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 	if (!state_play_debug_animation)
 	{
 		EveAnimationGraph->advanse(simulationTime, deltaTranslation, deltaRotation);
+		CombineAnimation(simulationTime);
 		Simulation::UpdateCapsuleRotation(GWorld.Capsules["eve"]);
-		fillSkeletonTransformFromJoint(EveAnimationGraph->getPlayingAnimation(), Eve->skelet);
-		calculateFramesTransformations(Eve->frame, Matrix::Identity);
+		fillSkeletonTransformFromJoint(EveAnimationGraph->getPlayingAnimation(), Eve);
+		calculateFramesTransformations(Eve, Matrix::Identity);
 	}
 	else
 	{
 		AnimationBase* Anim;
 		{
-			char* Names[] = { "Left_Edge_Horizontal_Jump", "Right_Edge_Horizontal_Jump" };
-			Anim = EdgeHorizontalJumpAnimation_TestPoses(EveAnimationGraph->getAnimation(Names[state_play_debug_animation_index - 1]), simulationTime, state_play_debug_animation_pose - 1);
+			//char* Names[] = { "Left_Edge_Horizontal_Jump", "Right_Edge_Horizontal_Jump" };
+			//Anim = EdgeHorizontalJumpAnimation_TestPoses(EveAnimationGraph->getAnimation(Names[state_play_debug_animation_index - 1]), simulationTime, state_play_debug_animation_pose - 1);
 		}
 		{
-			//DebugAnimation->advanse(simulationTime, deltaTranslation, deltaRotation);
+			DebugAnimation->advanse(simulationTime, deltaTranslation, deltaRotation);
 		}
-		fillSkeletonTransformFromJoint(Anim, Eve->skelet);
-		calculateFramesTransformations(Eve->frame, Matrix::Identity);
+		fillSkeletonTransformFromJoint(DebugAnimation, Eve);
+		calculateFramesTransformations(Eve, Matrix::Identity);
+		GWorld.Capsules["eve"].origin += deltaTranslation;
 		return;
 	}
 	
@@ -546,7 +565,7 @@ void SceneSimulation(double fTime, float fElapsedTime, void* pUserContext)
 		CapsulForwward_WS.Normalize();
 		state_CapsulAlfa_WS = atan2(CapsulForwward_WS.z, CapsulForwward_WS.x) * 180.f / XM_PI;
 
-		auto HipsForwward_WS = ((*GetSkeletonMatrix(Eve->skelet, 64)) * FromModelSpaceToWorld).Forward();
+		auto HipsForwward_WS = ((*GetSkeletonMatrix(Eve, HipsJointIndex)) * FromModelSpaceToWorld).Forward();
 		HipsForwward_WS.y = 0.f;
 		HipsForwward_WS.Normalize();
 		state_HipsAlfa_WS = atan2(HipsForwward_WS.z, HipsForwward_WS.x) * 180.f / XM_PI;

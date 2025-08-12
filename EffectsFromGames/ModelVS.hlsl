@@ -20,9 +20,11 @@ cbuffer cbMain : register( b0 )
 
 	float4    g_Time;
 
-	float4      g_ClipPlane0;
-	float4      g_ClipPlane1;
-	float4      g_ClipPlane2;	
+	float4    g_ClipPlane0;
+	float4    g_ClipPlane1;
+	float4    g_ClipPlane2;	
+
+	float4    g_MeshColor;
 };
 
 cbuffer cbBonePalite : register( b1 )
@@ -499,6 +501,26 @@ BOX_VS_OUTPUT STD_LIT_VS( in EVE_INPUT i )
 	output.viewTBN = float3(0, 0, 0);
 
     return output;
+};
+
+BOX_VS_OUTPUT LAMBERT_VS(in EVE_INPUT i)
+{
+	BOX_VS_OUTPUT output;
+
+	float4 lightPos = float4(20, 43, -24, 1);
+
+	output.normal = mul(float4(i.Normal, 0.0f), g_mWorldView).xyz;
+	output.pos = mul(float4(i.Pos, 1.0f), g_mWorldView).xyz;
+	output.light_pos = mul(lightPos, g_mView).xyz;
+	output.clip_pos = mul(float4(i.Pos, 1.0), g_mWorldViewProjection);
+
+	output.clip = dot(mul(float4(i.Pos, 1.0f), g_mWorld), g_ClipPlane0);
+	output.face_uv = i.TexCoord0;
+	output.face_size = float2(0, 0);
+	output.lightTBN = float3(0, 0, 0);
+	output.viewTBN = float3(0, 0, 0);
+
+	return output;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////

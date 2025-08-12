@@ -25,7 +25,6 @@ extern Box state_hanging_Ledge_Box;
 
 Animation* loadAnimationFromUnreal(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex);
 Animation* loadAnimation(const char * path, std::map<std::string, unsigned int> & FramesNamesIndex, char * replace = nullptr);
-void extractAnimationMeta(Animation * anim, bool extractHeight, double duration, std::function<SimpleMath::Matrix * __cdecl(unsigned int index)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTransformations);
 std::vector<JointSQT>& __AnimGetJointsByTime(AnimationBase* Anim, float Time);
 
 extern bool state_ballistic_fly_to_target;
@@ -73,15 +72,14 @@ struct JumpFromWallAnimation : public Animation
 
 	//float StartYaw;
 
-	JumpFromWallAnimation(std::map<std::string, unsigned int> & FramesNamesIndex,
-	std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+	JumpFromWallAnimation(std::map<std::string, unsigned int> & FramesNamesIndex)
 	{
 		Impl = new AnimationRep();
 
 		Anim_JumpForward = loadAnimation("Media\\Animations\\JumpForward.dae", FramesNamesIndex);
 		Anim_JumpForward->setRate(1);
 		Anim_JumpForward->setLooping(false);
-		extractAnimationMeta(Anim_JumpForward, true, .45f, getSkeletMatrix, calculateFramesTrans);
+		extractAnimationMeta(Anim_JumpForward, true, .45f);
 
 		CurrentJoints = ::__AnimGetJointsByTime(Anim_JumpForward, 0.f);
 	}
@@ -106,8 +104,8 @@ struct JumpFromWallAnimation : public Animation
 		CurrentJoints = Anim_Current->CurrentJoints;
 		CurrentMetaChannels = Anim_Current->CurrentMetaChannels;
 
-		RootSampledRotation = SimpleMath::Quaternion(CurrentJoints[64][1]);
-		CurrentJoints[64][1] = SimpleMath::Quaternion::Concatenate(
+		RootSampledRotation = SimpleMath::Quaternion(CurrentJoints[HipsJointIndex][1]);
+		CurrentJoints[HipsJointIndex][1] = SimpleMath::Quaternion::Concatenate(
 			RootDeltaRotation,
 			RootSampledRotation
 		);
@@ -260,9 +258,9 @@ struct JumpFromWallAnimation : public Animation
 	};
 };
 
-Animation * CreateJumpFromWallAnimation(std::map<std::string, unsigned int> & FramesNamesIndex, std::function<SimpleMath::Matrix* __cdecl(unsigned int)> getSkeletMatrix, std::function<void __cdecl()> calculateFramesTrans)
+Animation * CreateJumpFromWallAnimation(std::map<std::string, unsigned int> & FramesNamesIndex)
 {
-	return new JumpFromWallAnimation(FramesNamesIndex, getSkeletMatrix, calculateFramesTrans);
+	return new JumpFromWallAnimation(FramesNamesIndex);
 }
 
 SimpleMath::Matrix GetJumpFromWallStartTransform(AnimationBase *Anim)
